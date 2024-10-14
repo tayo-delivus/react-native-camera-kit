@@ -84,7 +84,6 @@ example/.yarn/*
 
 ios/build/
 ios/DerivedData/
-dist/
 ### Xcode ###
 *.xcodeproj/*
 !*.xcodeproj/project.pbxproj
