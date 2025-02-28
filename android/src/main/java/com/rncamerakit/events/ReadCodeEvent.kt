@@ -13,10 +13,8 @@ class ReadCodeEvent(
     private val top: Int,
     private val right: Int,
     private val bottom: Int,
-    private val screenLeft: Int,
-    private val screenTop: Int,
-    private val screenRight: Int,
-    private val screenBottom: Int
+    private val viewLeft: Int,
+    private val viewTop: Int,
 ) : Event<ReadCodeEvent>(surfaceId, viewId) {
     override fun getEventName(): String = EVENT_NAME
 
@@ -31,13 +29,11 @@ class ReadCodeEvent(
                 putInt("bottom", bottom)
             }
             putMap("coord", coord)
-            val screenCoord: WritableMap = Arguments.createMap().apply {
-                putInt("left", screenLeft)
-                putInt("top", screenTop)
-                putInt("right", screenRight)
-                putInt("bottom", screenBottom)
+            val view: WritableMap = Arguments.createMap().apply {
+                putInt("left", viewLeft)
+                putInt("top", viewTop)
             }
-            putMap("screenCoord", screenCoord)
+            putMap("view", view)
         }
 
     companion object {
