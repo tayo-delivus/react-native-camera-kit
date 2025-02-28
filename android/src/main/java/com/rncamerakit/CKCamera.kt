@@ -40,11 +40,8 @@ import kotlin.math.max
 import kotlin.math.min
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.Rect
 import android.graphics.RectF
-import com.facebook.react.uimanager.UIManagerHelper
 import com.google.mlkit.vision.barcode.common.Barcode
-import com.rncamerakit.events.*
 
 class RectOverlay constructor(context: Context) :
         View(context) {
@@ -116,8 +113,6 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.MATCH_PARENT
         )
-        viewFinder.setFocusableInTouchMode(true)
-        viewFinder.requestFocusFromTouch()
         installHierarchyFitter(viewFinder)
         addView(viewFinder)
 
@@ -140,22 +135,6 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         cameraExecutor.shutdown()
         orientationListener?.disable()
         cameraProvider?.unbindAll()
-    }
-
-    override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
-        val keyCode = event?.getKeyCode()
-        val action = event?.getAction()
-
-        if (keyCode == KeyEvent.KEYCODE_CAMERA || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-            if (action == KeyEvent.ACTION_DOWN) {
-                onCaptureButtonPressIn(keyCode)
-                return true
-            } else if (action == KeyEvent.ACTION_UP) {
-                onCaptureButtonPressOut(keyCode)
-                return true
-            }
-        }
-        return super.dispatchKeyEvent(event)
     }
 
     // If this is not called correctly, view finder will be black/blank
@@ -326,34 +305,9 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         val useCases = mutableListOf(preview, imageCapture)
 
         if (scanBarcode) {
-            val analyzer = QRCodeAnalyzer { barcodes, imageSize ->
-                if (barcodes.isEmpty()) {
-                    return@QRCodeAnalyzer
-                }
-
-                val barcodeFrame = barcodeFrame;
-                if (barcodeFrame == null) {
+            val analyzer = QRCodeAnalyzer { barcodes ->
+                if (barcodes.isNotEmpty()) {
                     onBarcodeRead(barcodes)
-                    return@QRCodeAnalyzer
-                }
-
-                // Calculate scaling factors (image is always rotated by 90 degrees)
-                val scaleX = viewFinder.width.toFloat() / imageSize.height
-                val scaleY = viewFinder.height.toFloat() / imageSize.width
-
-                val filteredBarcodes = barcodes.filter { barcode ->
-                    val barcodeBoundingBox = barcode.boundingBox ?: return@filter false;
-                    val scaledBarcodeBoundingBox = Rect(
-                        (barcodeBoundingBox.left * scaleX).toInt(),
-                        (barcodeBoundingBox.top * scaleY).toInt(),
-                        (barcodeBoundingBox.right * scaleX).toInt(),
-                        (barcodeBoundingBox.bottom * scaleY).toInt()
-                    )
-                    barcodeFrame.frameRect.contains(scaledBarcodeBoundingBox)
-                }
-
-                if (filteredBarcodes.isNotEmpty()) {
-                    onBarcodeRead(filteredBarcodes)
                 }
             }
             imageAnalyzer!!.setAnalyzer(cameraExecutor, analyzer)
@@ -376,10 +330,13 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         } catch (exc: Exception) {
             Log.e(TAG, "Use case binding failed", exc)
 
-            val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
-            UIManagerHelper
-                .getEventDispatcherForReactTag(currentContext, id)
-                ?.dispatchEvent(ErrorEvent(surfaceId, id, exc.message))
+            val event: WritableMap = Arguments.createMap()
+            event.putString("errorMessage", exc.message)
+            currentContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+                    id,
+                    "onError",
+                    event
+            )
         }
     }
 
@@ -502,11 +459,15 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
     }
 
     private fun onBarcodeRead(barcodes: List<Barcode>) {
+        val event: WritableMap = Arguments.createMap()
+        event.putString("codeStringValue", barcodes.first().rawValue)
         val codeFormat = CodeFormat.fromBarcodeType(barcodes.first().format);
-        val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
-        UIManagerHelper
-            .getEventDispatcherForReactTag(currentContext, id)
-            ?.dispatchEvent(ReadCodeEvent(surfaceId, id, barcodes.first().rawValue, codeFormat.code))
+        event.putString("codeFormat",codeFormat.code );
+        currentContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+                id,
+                "onReadCode",
+                event
+        )
     }
 
     private fun onOrientationChange(orientation: Int) {
@@ -521,33 +482,24 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
             }
         }
 
-        val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
-        UIManagerHelper
-            .getEventDispatcherForReactTag(currentContext, id)
-            ?.dispatchEvent(OrientationChangeEvent(surfaceId, id, remappedOrientation))
+        val event: WritableMap = Arguments.createMap()
+        event.putInt("orientation", remappedOrientation)
+        currentContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+                id,
+                "onOrientationChange",
+                event
+        )
     }
 
     private fun onPictureTaken(uri: String) {
-        val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
-        UIManagerHelper
-            .getEventDispatcherForReactTag(currentContext, id)
-            ?.dispatchEvent(PictureTakenEvent(surfaceId, id, uri))
+        val event: WritableMap = Arguments.createMap()
+        event.putString("uri", uri)
+        currentContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+                id,
+                "onPictureTaken",
+                event
+        )
     }
-
-    private fun onCaptureButtonPressIn(keyCode: Int) {
-        val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
-        UIManagerHelper
-            .getEventDispatcherForReactTag(currentContext, id)
-            ?.dispatchEvent(CaptureButtonPressInEvent(surfaceId, id, keyCode))
-    }
-
-    private fun onCaptureButtonPressOut(keyCode: Int) {
-        val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
-        UIManagerHelper
-            .getEventDispatcherForReactTag(currentContext, id)
-            ?.dispatchEvent(CaptureButtonPressOutEvent(surfaceId, id, keyCode))
-    }
-
 
     fun setFlashMode(mode: String?) {
         val imageCapture = imageCapture ?: return
@@ -617,10 +569,13 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         }
 
         lastOnZoom = desiredOrCameraZoom
-        val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
-        UIManagerHelper
-            .getEventDispatcherForReactTag(currentContext, id)
-            ?.dispatchEvent(ZoomEvent(surfaceId, id, desiredOrCameraZoom))
+        val event: WritableMap = Arguments.createMap()
+        event.putDouble("zoom", desiredOrCameraZoom)
+        currentContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+                id,
+                "onZoom",
+                event
+        )
     }
 
     fun setMaxZoom(factor: Double?) {

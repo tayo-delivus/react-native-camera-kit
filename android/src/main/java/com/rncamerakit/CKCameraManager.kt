@@ -9,20 +9,13 @@ import com.facebook.react.common.MapBuilder
 import com.facebook.react.common.ReactConstants.TAG
 import com.facebook.react.uimanager.SimpleViewManager
 import com.facebook.react.uimanager.ThemedReactContext
-import com.facebook.react.uimanager.ViewManagerDelegate
 import com.facebook.react.uimanager.annotations.ReactProp
-import com.facebook.react.viewmanagers.CKCameraManagerDelegate
-import com.facebook.react.viewmanagers.CKCameraManagerInterface
-import com.rncamerakit.events.*
 
-class CKCameraManager : SimpleViewManager<CKCamera>(), CKCameraManagerInterface<CKCamera> {
 
-    private val delegate: ViewManagerDelegate<CKCamera> = CKCameraManagerDelegate(this)
-
-    override fun getDelegate(): ViewManagerDelegate<CKCamera> = delegate
+class CKCameraManager : SimpleViewManager<CKCamera>() {
 
     override fun getName() : String {
-        return "CKCamera"
+        return "CKCameraManager"
     }
 
     override fun createViewInstance(context: ThemedReactContext): CKCamera {
@@ -51,96 +44,81 @@ class CKCameraManager : SimpleViewManager<CKCamera>(), CKCameraManagerInterface<
 
     override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any> {
         return MapBuilder.of(
-            OrientationChangeEvent.EVENT_NAME, MapBuilder.of("registrationName", "onOrientationChange"),
-            ReadCodeEvent.EVENT_NAME, MapBuilder.of("registrationName", "onReadCode"),
-            PictureTakenEvent.EVENT_NAME, MapBuilder.of("registrationName", "onPictureTaken"),
-            ZoomEvent.EVENT_NAME, MapBuilder.of("registrationName", "onZoom"),
-            ErrorEvent.EVENT_NAME, MapBuilder.of("registrationName", "onError"),
-            CaptureButtonPressInEvent.EVENT_NAME, MapBuilder.of("registrationName", "onCaptureButtonPressIn"),
-            CaptureButtonPressOutEvent.EVENT_NAME, MapBuilder.of("registrationName", "onCaptureButtonPressOut")
+                "onOrientationChange", MapBuilder.of("registrationName", "onOrientationChange"),
+                "onReadCode", MapBuilder.of("registrationName", "onReadCode"),
+                "onPictureTaken", MapBuilder.of("registrationName", "onPictureTaken"),
+                "onZoom", MapBuilder.of("registrationName", "onZoom"),
+                "onError", MapBuilder.of("registrationName", "onError")
         )
     }
 
     @ReactProp(name = "cameraType")
-    override fun setCameraType(view: CKCamera, type: String?) {
-        view.setCameraType(type ?: "back")
+    fun setCameraType(view: CKCamera, type: String) {
+        view.setCameraType(type)
     }
 
     @ReactProp(name = "flashMode")
-    override fun setFlashMode(view: CKCamera, mode: String?) {
+    fun setFlashMode(view: CKCamera, mode: String?) {
         view.setFlashMode(mode)
     }
 
     @ReactProp(name = "torchMode")
-    override fun setTorchMode(view: CKCamera, mode: String?) {
+    fun setTorchMode(view: CKCamera, mode: String?) {
         view.setTorchMode(mode)
     }
 
     @ReactProp(name = "focusMode")
-    override fun setFocusMode(view: CKCamera, mode: String?) {
-        view.setAutoFocus(mode ?: "on")
+    fun setFocusMode(view: CKCamera, mode: String) {
+        view.setAutoFocus(mode)
     }
 
     @ReactProp(name = "zoomMode")
-    override fun setZoomMode(view: CKCamera, mode: String?) {
+    fun setZoomMode(view: CKCamera, mode: String?) {
         view.setZoomMode(mode)
     }
 
     @ReactProp(name = "zoom", defaultDouble = -1.0)
-    override fun setZoom(view: CKCamera, factor: Double) {
+    fun setZoom(view: CKCamera, factor: Double) {
         view.setZoom(if (factor == -1.0) null else factor)
     }
 
     @ReactProp(name = "maxZoom", defaultDouble = 420.0)
-    override fun setMaxZoom(view: CKCamera, factor: Double) {
+    fun setMaxZoom(view: CKCamera, factor: Double) {
         view.setMaxZoom(factor)
     }
 
     @ReactProp(name = "scanBarcode")
-    override fun setScanBarcode(view: CKCamera, enabled: Boolean) {
+    fun setScanBarcode(view: CKCamera, enabled: Boolean) {
         view.setScanBarcode(enabled)
     }
 
     @ReactProp(name = "showFrame")
-    override fun setShowFrame(view: CKCamera, enabled: Boolean) {
+    fun setShowFrame(view: CKCamera, enabled: Boolean) {
         view.setShowFrame(enabled)
     }
 
     @ReactProp(name = "laserColor", defaultInt = Color.RED)
-    override fun setLaserColor(view: CKCamera, @ColorInt color: Int?) {
-        view.setLaserColor(color ?: Color.RED)
+    fun setLaserColor(view: CKCamera, @ColorInt color: Int) {
+        view.setLaserColor(color)
     }
 
     @ReactProp(name = "frameColor", defaultInt = Color.GREEN)
-    override fun setFrameColor(view: CKCamera, @ColorInt color: Int?) {
-        view.setFrameColor(color ?: Color.GREEN)
+    fun setFrameColor(view: CKCamera, @ColorInt color: Int) {
+        view.setFrameColor(color)
     }
 
     @ReactProp(name = "outputPath")
-    override fun setOutputPath(view: CKCamera, path: String?) {
-        view.setOutputPath(path ?: "")
+    fun setOutputPath(view: CKCamera, path: String) {
+        view.setOutputPath(path)
     }
 
     @ReactProp(name = "shutterAnimationDuration")
-    override fun setShutterAnimationDuration(view: CKCamera, duration: Int) {
+    fun setShutterAnimationDuration(view: CKCamera, duration: Int) {
         view.setShutterAnimationDuration(duration)
     }
 
     @ReactProp(name = "shutterPhotoSound")
-    override fun setShutterPhotoSound(view: CKCamera, enabled: Boolean) {
+    fun setShutterPhotoSound(view: CKCamera, enabled: Boolean) {
         view.setShutterPhotoSound(enabled);
     }
-
-    // Methods only available on iOS
-    override fun setRatioOverlay(view: CKCamera?, value: String?) = Unit
-
-    override fun setRatioOverlayColor(view: CKCamera?, value: Int?) = Unit
-
-    override fun setResetFocusTimeout(view: CKCamera?, value: Int) = Unit
-
-    override fun setResetFocusWhenMotionDetected(view: CKCamera?, value: Boolean) = Unit
-
-    override fun setResizeMode(view: CKCamera?, value: String?) = Unit
-
-    override fun setScanThrottleDelay(view: CKCamera?, value: Int) = Unit
 }
