@@ -42,7 +42,9 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
+import com.facebook.react.uimanager.UIManagerHelper
 import com.google.mlkit.vision.barcode.common.Barcode
+import com.rncamerakit.events.*
 
 class RectOverlay constructor(context: Context) :
         View(context) {
@@ -356,13 +358,10 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         } catch (exc: Exception) {
             Log.e(TAG, "Use case binding failed", exc)
 
-            val event: WritableMap = Arguments.createMap()
-            event.putString("errorMessage", exc.message)
-            currentContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
-                    id,
-                    "onError",
-                    event
-            )
+            val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
+            UIManagerHelper
+                .getEventDispatcherForReactTag(currentContext, id)
+                ?.dispatchEvent(ErrorEvent(surfaceId, id, exc.message))
         }
     }
 
@@ -485,15 +484,11 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
     }
 
     private fun onBarcodeRead(barcodes: List<Barcode>) {
-        val event: WritableMap = Arguments.createMap()
-        event.putString("codeStringValue", barcodes.first().rawValue)
         val codeFormat = CodeFormat.fromBarcodeType(barcodes.first().format);
-        event.putString("codeFormat",codeFormat.code );
-        currentContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
-                id,
-                "onReadCode",
-                event
-        )
+        val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
+        UIManagerHelper
+            .getEventDispatcherForReactTag(currentContext, id)
+            ?.dispatchEvent(ReadCodeEvent(surfaceId, id, barcodes.first().rawValue, codeFormat.code))
     }
 
     private fun onOrientationChange(orientation: Int) {
@@ -508,23 +503,17 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
             }
         }
 
-        val event: WritableMap = Arguments.createMap()
-        event.putInt("orientation", remappedOrientation)
-        currentContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
-                id,
-                "onOrientationChange",
-                event
-        )
+        val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
+        UIManagerHelper
+            .getEventDispatcherForReactTag(currentContext, id)
+            ?.dispatchEvent(OrientationChangeEvent(surfaceId, id, remappedOrientation))
     }
 
     private fun onPictureTaken(uri: String) {
-        val event: WritableMap = Arguments.createMap()
-        event.putString("uri", uri)
-        currentContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
-                id,
-                "onPictureTaken",
-                event
-        )
+        val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
+        UIManagerHelper
+            .getEventDispatcherForReactTag(currentContext, id)
+            ?.dispatchEvent(PictureTakenEvent(surfaceId, id, uri))
     }
 
     fun setFlashMode(mode: String?) {
@@ -595,13 +584,10 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         }
 
         lastOnZoom = desiredOrCameraZoom
-        val event: WritableMap = Arguments.createMap()
-        event.putDouble("zoom", desiredOrCameraZoom)
-        currentContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
-                id,
-                "onZoom",
-                event
-        )
+        val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
+        UIManagerHelper
+            .getEventDispatcherForReactTag(currentContext, id)
+            ?.dispatchEvent(ZoomEvent(surfaceId, id, desiredOrCameraZoom))
     }
 
     fun setMaxZoom(factor: Double?) {
