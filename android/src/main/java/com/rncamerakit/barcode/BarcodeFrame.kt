@@ -31,18 +31,36 @@ class BarcodeFrame(context: Context) : View(context) {
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-        val marginHeight = 40
-        val marginWidth = 40
-        val frameMaxWidth = 1200
-        val frameMaxHeight = 600
-        val frameMinWidth = 100
-        val frameMinHeight = 100
-        frameWidth = max(frameMinWidth, min(frameMaxWidth, measuredWidth - (marginWidth * 2)))
-        frameHeight = max(frameMinHeight, min(frameMaxHeight, measuredHeight - (marginHeight * 2)))
-        frameRect.left = (measuredWidth / 2) - (frameWidth / 2)
-        frameRect.right = (measuredWidth / 2) + (frameWidth / 2)
-        frameRect.top = (measuredHeight / 2) - (frameHeight / 2)
-        frameRect.bottom = (measuredHeight / 2) + (frameHeight / 2)
+    
+        // 여백을 줄 값 (픽셀 단위, 필요에 따라 조정)
+        val margin = 40
+        
+        // 사용할 수 있는 높이 (여백 제외)
+        val availableHeight = measuredHeight - margin * 2
+        // 2:1 비율이면, 원하는 너비는 availableHeight의 2배
+        val desiredFrameWidth = availableHeight * 2
+
+        // 사용할 수 있는 너비 (여백 제외)
+        val availableWidth = measuredWidth - margin * 2
+        
+        // 만약 원하는 너비가 사용할 수 있는 너비보다 크면, 너비에 맞춰서 높이를 재계산
+        val (frameWidth, frameHeight) = if (desiredFrameWidth > availableWidth) {
+            val adjustedWidth = availableWidth
+            val adjustedHeight = adjustedWidth / 2  // 2:1 비율 유지
+            Pair(adjustedWidth, adjustedHeight)
+        } else {
+            Pair(desiredFrameWidth, availableHeight)
+        }
+        
+        // 중앙 정렬: 전체 영역(measuredWidth, measuredHeight)에서 프레임을 가운데 배치
+        frameRect.left = (measuredWidth - frameWidth) / 2
+        frameRect.top = (measuredHeight - frameHeight) / 2
+        frameRect.right = frameRect.left + frameWidth
+        frameRect.bottom = frameRect.top + frameHeight
+
+        // 프레임 크기를 내부 변수에 저장 (필요 시)
+        this.frameWidth = frameWidth
+        this.frameHeight = frameHeight
     }
 
     override fun onDraw(canvas: Canvas) {
