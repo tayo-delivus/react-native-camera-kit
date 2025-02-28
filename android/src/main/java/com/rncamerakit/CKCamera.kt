@@ -529,9 +529,21 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         val right = boundingBox?.right ?: 0
         val bottom = boundingBox?.bottom ?: 0
 
+        // viewFinder의 화면 상 위치(오프셋)를 구합니다.
+        val viewLocation = IntArray(2)
+        viewFinder.getLocationOnScreen(viewLocation)
+        val viewLeft = viewLocation[0]
+        val viewTop = viewLocation[1]
+        // 여기서는 단순히 원본 좌표에 viewFinder의 오프셋을 더해 화면 좌표를 구합니다.
+        // (실제 프리뷰 스케일링/크롭이 있다면 이에 맞는 변환이 추가되어야 합니다.)
+        val screenLeft = coordLeft + viewLeft
+        val screenTop = coordTop + viewTop
+        val screenRight = coordRight + viewLeft
+        val screenBottom = coordBottom + viewTop
+
         UIManagerHelper
             .getEventDispatcherForReactTag(currentContext, id)
-            ?.dispatchEvent(ReadCodeEvent(surfaceId, id, barcodes.first().rawValue, codeFormat.code, left, top, right, bottom))
+            ?.dispatchEvent(ReadCodeEvent(surfaceId, id, barcodes.first().rawValue, codeFormat.code, left, top, right, bottom,screenLeft, screenTop, screenRight, screenBottom))
     }
 
     private fun onOrientationChange(orientation: Int) {
