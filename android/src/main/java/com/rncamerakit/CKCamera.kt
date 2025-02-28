@@ -534,10 +534,12 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         viewFinder.getLocationOnScreen(viewLocation)
         val viewLeft = viewLocation[0]
         val viewTop = viewLocation[1]
+        val viewRight = viewLeft + viewFinder.width
+        val viewBottom = viewTop + viewFinder.height
 
         UIManagerHelper
             .getEventDispatcherForReactTag(currentContext, id)
-            ?.dispatchEvent(ReadCodeEvent(surfaceId, id, barcodes.first().rawValue, codeFormat.code, left, top, right, bottom, viewLeft, viewTop))
+            ?.dispatchEvent(ReadCodeEvent(surfaceId, id, barcodes.first().rawValue, codeFormat.code, left, top, right, bottom, viewLeft, viewTop, viewRight, viewBottom))
     }
 
     private fun onOrientationChange(orientation: Int) {
