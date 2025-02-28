@@ -518,11 +518,20 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
     }
 
     private fun onBarcodeRead(barcodes: List<Barcode>) {
+        val firstBarcode = barcodes.firstOrNull() ?: return
         val codeFormat = CodeFormat.fromBarcodeType(barcodes.first().format);
         val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
+
+        val boundingBox = firstBarcode.boundingBox
+        // boundingBox가 null이면 기본값 0으로 처리합니다.
+        val left = boundingBox?.left ?: 0
+        val top = boundingBox?.top ?: 0
+        val right = boundingBox?.right ?: 0
+        val bottom = boundingBox?.bottom ?: 0
+
         UIManagerHelper
             .getEventDispatcherForReactTag(currentContext, id)
-            ?.dispatchEvent(ReadCodeEvent(surfaceId, id, barcodes.first().rawValue, codeFormat.code))
+            ?.dispatchEvent(ReadCodeEvent(surfaceId, id, barcodes.first().rawValue, codeFormat.code, left, top, right, bottom))
     }
 
     private fun onOrientationChange(orientation: Int) {
