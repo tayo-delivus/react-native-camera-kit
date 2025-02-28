@@ -16,7 +16,7 @@ class QRCodeAnalyzer (
     @ExperimentalGetImage
     override fun analyze(image: ImageProxy) {
         val mediaImage = image.image ?: return
-        val inputImage = InputImage.fromMediaImage(image.image!!, image.imageInfo.rotationDegrees)
+        val inputImage = InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
 
         val scanner = BarcodeScanning.getClient()
         scanner.process(inputImage)
