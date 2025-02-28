@@ -331,8 +331,7 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
                     return@QRCodeAnalyzer
                 }
 
-                val barcodeFrame = barcodeFrame;
-                if (barcodeFrame == null) {
+                val barcodeFrameView = barcodeFrame ?: run {
                     onBarcodeRead(barcodes)
                     return@QRCodeAnalyzer
                 }
