@@ -337,19 +337,36 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
                     return@QRCodeAnalyzer
                 }
 
-                // Calculate scaling factors (image is always rotated by 90 degrees)
+                // BarcodeFrame의 화면 상 위치를 가져옴
+                val frameLocation = IntArray(2)
+                barcodeFrameView.getLocationOnScreen(frameLocation)
+                val frameLeft = frameLocation[0]
+                val frameTop = frameLocation[1]
+                val frameRight = frameLeft + barcodeFrameView.width
+                val frameBottom = frameTop + barcodeFrameView.height
+                val frameRectScreen = Rect(frameLeft, frameTop, frameRight, frameBottom)
+
+                // viewFinder의 화면 상 위치를 가져옴
+                val viewLocation = IntArray(2)
+                viewFinder.getLocationOnScreen(viewLocation)
+                val viewLeft = viewLocation[0]
+                val viewTop = viewLocation[1]
+
+                // viewFinder의 크기를 기준으로 스케일 팩터 계산
                 val scaleX = viewFinder.width.toFloat() / imageSize.height
                 val scaleY = viewFinder.height.toFloat() / imageSize.width
 
+                // 검출된 바코드의 bounding box를 화면 좌표계로 변환
                 val filteredBarcodes = barcodes.filter { barcode ->
-                    val barcodeBoundingBox = barcode.boundingBox ?: return@filter false;
-                    val scaledBarcodeBoundingBox = Rect(
-                        (barcodeBoundingBox.left * scaleX).toInt(),
-                        (barcodeBoundingBox.top * scaleY).toInt(),
-                        (barcodeBoundingBox.right * scaleX).toInt(),
-                        (barcodeBoundingBox.bottom * scaleY).toInt()
-                    )
-                    barcodeFrame.frameRect.contains(scaledBarcodeBoundingBox)
+                    val barcodeBoundingBox = barcode.boundingBox ?: return@filter false
+                    val scaledLeft = (barcodeBoundingBox.left * scaleX).toInt() + viewLeft
+                    val scaledTop = (barcodeBoundingBox.top * scaleY).toInt() + viewTop
+                    val scaledRight = (barcodeBoundingBox.right * scaleX).toInt() + viewLeft
+                    val scaledBottom = (barcodeBoundingBox.bottom * scaleY).toInt() + viewTop
+                    val scaledBarcodeBoundingBox = Rect(scaledLeft, scaledTop, scaledRight, scaledBottom)
+
+                    // 화면 상의 BarcodeFrame 영역과 비교
+                    frameRectScreen.contains(scaledBarcodeBoundingBox)
                 }
 
                 if (filteredBarcodes.isNotEmpty()) {
