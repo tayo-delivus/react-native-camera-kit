@@ -45,7 +45,6 @@ import android.graphics.RectF
 import com.facebook.react.uimanager.UIManagerHelper
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.rncamerakit.events.*
-import android.util.Log
 
 class RectOverlay constructor(context: Context) :
         View(context) {
