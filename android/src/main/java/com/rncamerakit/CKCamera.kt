@@ -45,6 +45,7 @@ import android.graphics.RectF
 import com.facebook.react.uimanager.UIManagerHelper
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.rncamerakit.events.*
+import android.util.Log
 
 class RectOverlay constructor(context: Context) :
         View(context) {
@@ -335,6 +336,7 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
                     onBarcodeRead(barcodes)
                     return@QRCodeAnalyzer
                 }
+                Log.d("Has-a-barcode-frame", barcodeFrame)
 
                 // BarcodeFrame의 화면 상 위치를 가져옴
                 val frameLocation = IntArray(2)
@@ -344,6 +346,7 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
                 val frameRight = frameLeft + barcodeFrameView.width
                 val frameBottom = frameTop + barcodeFrameView.height
                 val frameRectScreen = Rect(frameLeft, frameTop, frameRight, frameBottom)
+                Log.d("--frame--", frameLeft.toString() + " " + frameTop.toString() + " " + frameRight.toString() + " " + frameBottom.toString())
 
                 // viewFinder의 화면 상 위치를 가져옴
                 val viewLocation = IntArray(2)
@@ -534,12 +537,29 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         viewFinder.getLocationOnScreen(viewLocation)
         val viewLeft = viewLocation[0]
         val viewTop = viewLocation[1]
-        val viewRight = viewLeft + viewFinder.width
-        val viewBottom = viewTop + viewFinder.height
+        val viewWidth = viewFinder.width
+        val viewHeight = viewFinder.height
+        val viewRight = viewLeft + viewWidth
+        val viewBottom = viewTop + viewHeight
+
+        val assumedPreviewWidth = viewWidth.toFloat()
+        val assumedPreviewHeight = assumedPreviewWidth * 0.55f
+
+        // 실제 viewFinder는 JS에서 height: Math.floor(width * 0.55)로 설정되어 있으므로,
+        // 미리보기 이미지(assumedPreviewHeight)가 viewFinder보다 작거나 클 수 있습니다.
+        // 여기서는 미리보기 이미지를 viewFinder의 중앙에 배치했다고 가정합니다.
+        val verticalOffset = (viewHeight - assumedPreviewHeight) * 0.55f
+
+        // 카메라 좌표계(미리보기 해상도 기준)에서 viewFinder 좌표계로 변환합니다.
+        // 수평은 viewWidth와 assumedPreviewWidth가 같으므로 scaleX는 1이고,
+        // 수직 좌표는 그대로 사용하되, 중앙 정렬에 따른 offset을 더합니다.
+        val transformedTop = top.toFloat() + verticalOffset
+        val transformedBottom = bottom.toFloat() + verticalOffset
+
 
         UIManagerHelper
             .getEventDispatcherForReactTag(currentContext, id)
-            ?.dispatchEvent(ReadCodeEvent(surfaceId, id, barcodes.first().rawValue, codeFormat.code, left, top, right, bottom, viewLeft, viewTop, viewRight, viewBottom))
+            ?.dispatchEvent(ReadCodeEvent(surfaceId, id, barcodes.first().rawValue, codeFormat.code, left, transformedTop.toInt(), right, transformedBottom.toInt(), viewLeft, viewTop, viewRight, viewBottom))
     }
 
     private fun onOrientationChange(orientation: Int) {
