@@ -336,7 +336,6 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
                     onBarcodeRead(barcodes)
                     return@QRCodeAnalyzer
                 }
-                Log.d("Has-a-barcode-frame", barcodeFrame)
 
                 // BarcodeFrame의 화면 상 위치를 가져옴
                 val frameLocation = IntArray(2)
