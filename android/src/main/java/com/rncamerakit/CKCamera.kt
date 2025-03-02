@@ -336,37 +336,35 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
                     return@QRCodeAnalyzer
                 }
 
-                // BarcodeFrame의 화면 상 위치를 가져옴
-                val frameLocation = IntArray(2)
-                barcodeFrameView.getLocationOnScreen(frameLocation)
-                val frameLeft = frameLocation[0]
-                val frameTop = frameLocation[1]
-                val frameRight = frameLeft + barcodeFrameView.width
-                val frameBottom = frameTop + barcodeFrameView.height
-                val frameRectScreen = Rect(frameLeft, frameTop, frameRight, frameBottom)
-                Log.d("--frame--", frameLeft.toString() + " " + frameTop.toString() + " " + frameRight.toString() + " " + frameBottom.toString())
+                val scaleFactorWidth = viewFinder.width.toFloat() / imageSize.height  // 회전된 이미지 기준
+                val scaleFactorHeight = viewFinder.height.toFloat() / imageSize.width  // 회전된 이미지 기준
+                val scaleFactor = maxOf(scaleFactorWidth, scaleFactorHeight)
 
-                // viewFinder의 화면 상 위치를 가져옴
-                val viewLocation = IntArray(2)
-                viewFinder.getLocationOnScreen(viewLocation)
-                val viewLeft = viewLocation[0]
-                val viewTop = viewLocation[1]
+                // 화면에 꽉 채우기 위해 한쪽 축은 잘리게 되는데, 해당 오프셋(offset)을 계산
+                var offsetX = 0f
+                var offsetY = 0f
 
-                // viewFinder의 크기를 기준으로 스케일 팩터 계산
-                val scaleX = viewFinder.width.toFloat() / imageSize.height
-                val scaleY = viewFinder.height.toFloat() / imageSize.width
+                // 만약 scaleFactor가 높이를 기준으로 결정됐다면, 가로 방향은 초과되어 잘림
+                if (scaleFactorWidth < scaleFactorHeight) {
+                    val scaledWidth = imageSize.height * scaleFactor
+                    offsetX = (scaledWidth - viewFinder.width) / 2
+                } else {
+                    // 반대로 scaleFactor가 가로 기준이면, 세로 방향이 초과되어 잘림
+                    val scaledHeight = imageSize.width * scaleFactor
+                    offsetY = (scaledHeight - viewFinder.height) / 2
+                }
 
                 // 검출된 바코드의 bounding box를 화면 좌표계로 변환
                 val filteredBarcodes = barcodes.filter { barcode ->
                     val barcodeBoundingBox = barcode.boundingBox ?: return@filter false
-                    val scaledLeft = (barcodeBoundingBox.left * scaleX).toInt() + viewLeft
-                    val scaledTop = (barcodeBoundingBox.top * scaleY).toInt() + viewTop
-                    val scaledRight = (barcodeBoundingBox.right * scaleX).toInt() + viewLeft
-                    val scaledBottom = (barcodeBoundingBox.bottom * scaleY).toInt() + viewTop
-                    val scaledBarcodeBoundingBox = Rect(scaledLeft, scaledTop, scaledRight, scaledBottom)
+                    val left = barcodeBoundingBox.left * scaleFactor - offsetX
+                    val top = barcodeBoundingBox.top * scaleFactor - offsetY
+                    val right = barcodeBoundingBox.right * scaleFactor - offsetX
+                    val bottom = barcodeBoundingBox.bottom * scaleFactor - offsetY
+                    val scaledBarcodeBoundingBox = Rect(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
 
-                    // 화면 상의 BarcodeFrame 영역과 비교
-                    frameRectScreen.contains(scaledBarcodeBoundingBox)
+                    // 변환된 QR 코드 boundingBox가 barcodeFrame 내부에 완전히 포함되는지 확인
+                    barcodeFrame.frameRect.contains(scaledBarcodeBoundingBox)
                 }
 
                 if (filteredBarcodes.isNotEmpty()) {
@@ -519,45 +517,12 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
     }
 
     private fun onBarcodeRead(barcodes: List<Barcode>) {
-        val firstBarcode = barcodes.firstOrNull() ?: return
         val codeFormat = CodeFormat.fromBarcodeType(barcodes.first().format);
         val surfaceId = UIManagerHelper.getSurfaceId(currentContext)
 
-        val boundingBox = firstBarcode.boundingBox
-        // boundingBox가 null이면 기본값 0으로 처리합니다.
-        val left = boundingBox?.left ?: 0
-        val top = boundingBox?.top ?: 0
-        val right = boundingBox?.right ?: 0
-        val bottom = boundingBox?.bottom ?: 0
-
-        // viewFinder의 화면 상 위치(오프셋)를 구합니다.
-        val viewLocation = IntArray(2)
-        viewFinder.getLocationOnScreen(viewLocation)
-        val viewLeft = viewLocation[0]
-        val viewTop = viewLocation[1]
-        val viewWidth = viewFinder.width
-        val viewHeight = viewFinder.height
-        val viewRight = viewLeft + viewWidth
-        val viewBottom = viewTop + viewHeight
-
-        val assumedPreviewWidth = viewWidth.toFloat()
-        val assumedPreviewHeight = assumedPreviewWidth * 0.55f
-
-        // 실제 viewFinder는 JS에서 height: Math.floor(width * 0.55)로 설정되어 있으므로,
-        // 미리보기 이미지(assumedPreviewHeight)가 viewFinder보다 작거나 클 수 있습니다.
-        // 여기서는 미리보기 이미지를 viewFinder의 중앙에 배치했다고 가정합니다.
-        val verticalOffset = (viewHeight - assumedPreviewHeight) * 0.55f
-
-        // 카메라 좌표계(미리보기 해상도 기준)에서 viewFinder 좌표계로 변환합니다.
-        // 수평은 viewWidth와 assumedPreviewWidth가 같으므로 scaleX는 1이고,
-        // 수직 좌표는 그대로 사용하되, 중앙 정렬에 따른 offset을 더합니다.
-        val transformedTop = top.toFloat() + verticalOffset
-        val transformedBottom = bottom.toFloat() + verticalOffset
-
-
         UIManagerHelper
             .getEventDispatcherForReactTag(currentContext, id)
-            ?.dispatchEvent(ReadCodeEvent(surfaceId, id, barcodes.first().rawValue, codeFormat.code, left, transformedTop.toInt(), right, transformedBottom.toInt(), viewLeft, viewTop, viewRight, viewBottom))
+            ?.dispatchEvent(ReadCodeEvent(surfaceId, id, barcodes.first().rawValue, codeFormat.code))
     }
 
     private fun onOrientationChange(orientation: Int) {
