@@ -364,7 +364,7 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
                     val scaledBarcodeBoundingBox = Rect(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
 
                     // 변환된 QR 코드 boundingBox가 barcodeFrame 내부에 완전히 포함되는지 확인
-                    barcodeFrame.frameRect.contains(scaledBarcodeBoundingBox)
+                    barcodeFrameView.frameRect.contains(scaledBarcodeBoundingBox)
                 }
 
                 if (filteredBarcodes.isNotEmpty()) {
