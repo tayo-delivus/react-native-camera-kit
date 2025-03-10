@@ -109,6 +109,12 @@ public class CameraView: UIView {
 
         super.init(frame: frame)
 
+        // 앱 재진입 시 스캐너 프레임 업데이트를 위한 옵저버 추가
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(handleDidBecomeActive),
+                                               name: UIApplication.didBecomeActiveNotification,
+                                               object: nil)
+
         // Transfer the default values, otherwise the default wont take effect since it's a separate class
         focusInterfaceView.update(focusMode: focusMode)
         focusInterfaceView.update(resetFocusTimeout: resetFocusTimeout)
@@ -127,7 +133,11 @@ public class CameraView: UIView {
         
         configureHardwareInteraction()
     }
-    
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     private func configureHardwareInteraction() {
         #if !targetEnvironment(macCatalyst)
         // Create a new capture event interaction with a handler that captures a photo.
@@ -280,6 +290,16 @@ public class CameraView: UIView {
 
         if changedProps.contains("maxZoom") {
             camera.update(maxZoom: maxZoom?.doubleValue)
+        }
+    }
+
+    // MARK: - App Active Handler
+
+    // 앱이 active 상태로 돌아왔을 때 스캐너의 프레임 영역을 다시 업데이트하여
+    // 바코드 인식이 프레임 내에서만 이루어지도록 합니다.
+    @objc private func handleDidBecomeActive() {
+        DispatchQueue.main.async {
+            self.camera.update(scannerFrameSize: self.showFrame ? self.scannerInterfaceView.frameSize : nil)
         }
     }
 
