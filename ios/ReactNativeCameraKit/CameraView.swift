@@ -139,7 +139,7 @@ public class CameraView: UIView {
     }
 
     // 화면이 윈도우에 다시 추가될 때(예: 뒤로 갔다가 재진입) 스캐너 프레임 갱신
-    override func didMoveToWindow() {
+    override public func didMoveToWindow() {
         super.didMoveToWindow()
         if window != nil {
             DispatchQueue.main.async {
