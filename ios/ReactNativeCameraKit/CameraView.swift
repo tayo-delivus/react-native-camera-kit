@@ -24,7 +24,7 @@ public class CameraView: UIView {
     private var supportedBarcodeType: [CodeFormat] = {
         return CodeFormat.allCases
     }()
-    
+
     // camera
     private var ratioOverlayView: RatioOverlayView?
 
@@ -60,7 +60,7 @@ public class CameraView: UIView {
 
     @objc public var onCaptureButtonPressIn: RCTDirectEventBlock?
     @objc public var onCaptureButtonPressOut: RCTDirectEventBlock?
-    
+
     var eventInteraction: Any? = nil
 
     // MARK: - Setup
@@ -130,12 +130,22 @@ public class CameraView: UIView {
         focusInterfaceView.delegate = camera
 
         handleCameraPermission()
-        
+
         configureHardwareInteraction()
     }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+
+    // 화면이 윈도우에 다시 추가될 때(예: 뒤로 갔다가 재진입) 스캐너 프레임 갱신
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil {
+            DispatchQueue.main.async {
+                self.camera.update(scannerFrameSize: self.showFrame ? self.scannerInterfaceView.frameSize : nil)
+            }
+        }
     }
 
     private func configureHardwareInteraction() {
@@ -218,7 +228,7 @@ public class CameraView: UIView {
         if changedProps.contains("onZoom") {
             camera.update(onZoom: onZoom)
         }
-        
+
         if changedProps.contains("resizeMode") {
             camera.update(resizeMode: resizeMode)
         }
