@@ -28,7 +28,6 @@
   "source": "./src/",
   "types": "dist/index.d.ts",
   "react-native": "src/index",
-  "dependencies": {},
   "license": "MIT",
   "devDependencies": {
     "@babel/core": "^7.20.0",
