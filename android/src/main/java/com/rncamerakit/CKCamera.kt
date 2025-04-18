@@ -305,14 +305,54 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         val useCases = mutableListOf(preview, imageCapture)
 
         if (scanBarcode) {
-            val analyzer = QRCodeAnalyzer { barcodes ->
-                if (barcodes.isNotEmpty()) {
-                    onBarcodeRead(barcodes)
+                    val analyzer = QRCodeAnalyzer { barcodes, imageSize ->
+                        if (barcodes.isEmpty()) {
+                            return@QRCodeAnalyzer
+                        }
+
+                        val barcodeFrameView = barcodeFrame ?: run {
+                            onBarcodeRead(barcodes)
+                            return@QRCodeAnalyzer
+                        }
+
+                        val scaleFactorWidth = viewFinder.width.toFloat() / imageSize.height  // 회전된 이미지 기준
+                        val scaleFactorHeight = viewFinder.height.toFloat() / imageSize.width  // 회전된 이미지 기준
+                        val scaleFactor = maxOf(scaleFactorWidth, scaleFactorHeight)
+
+                        // 화면에 꽉 채우기 위해 한쪽 축은 잘리게 되는데, 해당 오프셋(offset)을 계산
+                        var offsetX = 0f
+                        var offsetY = 0f
+
+                        // 만약 scaleFactor가 높이를 기준으로 결정됐다면, 가로 방향은 초과되어 잘림
+                        if (scaleFactorWidth < scaleFactorHeight) {
+                            val scaledWidth = imageSize.height * scaleFactor
+                            offsetX = (scaledWidth - viewFinder.width) / 2
+                        } else {
+                            // 반대로 scaleFactor가 가로 기준이면, 세로 방향이 초과되어 잘림
+                            val scaledHeight = imageSize.width * scaleFactor
+                            offsetY = (scaledHeight - viewFinder.height) / 2
+                        }
+
+                        // 검출된 바코드의 bounding box를 화면 좌표계로 변환
+                        val filteredBarcodes = barcodes.filter { barcode ->
+                            val barcodeBoundingBox = barcode.boundingBox ?: return@filter false
+                            val left = barcodeBoundingBox.left * scaleFactor - offsetX
+                            val top = barcodeBoundingBox.top * scaleFactor - offsetY
+                            val right = barcodeBoundingBox.right * scaleFactor - offsetX
+                            val bottom = barcodeBoundingBox.bottom * scaleFactor - offsetY
+                            val scaledBarcodeBoundingBox = Rect(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
+
+                            // 변환된 QR 코드 boundingBox가 barcodeFrame 내부에 완전히 포함되는지 확인
+                            barcodeFrameView.frameRect.contains(scaledBarcodeBoundingBox)
+                        }
+
+                        if (filteredBarcodes.isNotEmpty()) {
+                            onBarcodeRead(filteredBarcodes)
+                        }
+                    }
+                    imageAnalyzer!!.setAnalyzer(cameraExecutor, analyzer)
+                    useCases.add(imageAnalyzer)
                 }
-            }
-            imageAnalyzer!!.setAnalyzer(cameraExecutor, analyzer)
-            useCases.add(imageAnalyzer)
-        }
 
         // Must unbind the use-cases before rebinding them
         cameraProvider.unbindAll()
