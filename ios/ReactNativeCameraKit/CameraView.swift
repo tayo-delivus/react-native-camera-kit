@@ -111,6 +111,8 @@ public class CameraView: UIView {
 
         super.init(frame: frame)
 
+        NotificationCenter.default.addObserver(self, selector: #selector(handleDidBecomeActive), name: UIApplication.didBecomeActiveNotification, object: nil)
+
         // Transfer the default values, otherwise the default wont take effect since it's a separate class
         focusInterfaceView.update(focusMode: focusMode)
         focusInterfaceView.update(resetFocusTimeout: resetFocusTimeout)
@@ -128,6 +130,28 @@ public class CameraView: UIView {
         handleCameraPermission()
         
         configureHardwareInteraction()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    // 화면이 윈도우에 다시 추가될 때(예: 뒤로 갔다가 재진입) 스캐너 프레임 갱신
+    override public func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil {
+            DispatchQueue.main.async {
+                self.camera.update(scannerFrameSize: self.showFrame ? self.scannerInterfaceView.frameSize : nil)
+            }
+        }
+    }
+
+    // 앱이 active 상태로 돌아왔을 때 스캐너의 프레임 영역을 다시 업데이트하여
+    // 바코드 인식이 프레임 내에서만 이루어지도록 합니다.
+    @objc private func handleDidBecomeActive() {
+        DispatchQueue.main.async {
+            self.camera.update(scannerFrameSize: self.showFrame ? self.scannerInterfaceView.frameSize : nil)
+        }
     }
     
     private func configureHardwareInteraction() {
