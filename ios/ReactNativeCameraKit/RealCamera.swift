@@ -33,10 +33,12 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     private var resizeMode: ResizeMode = .contain
     private var flashMode: FlashMode = .auto
     private var torchMode: TorchMode = .off
+    private var maxPhotoQualityPrioritization: MaxPhotoQualityPrioritization?
     private var resetFocus: (() -> Void)?
     private var focusFinished: (() -> Void)?
     private var onBarcodeRead: ((_ barcode: String,_ codeFormat : CodeFormat) -> Void)?
     private var scannerFrameSize: CGRect? = nil
+    private var barcodeFrameSize: CGSize? = nil
     private var onOrientationChange: RCTDirectEventBlock?
     private var onZoomCallback: RCTDirectEventBlock?
     private var lastOnZoom: Double?
@@ -54,6 +56,7 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
 
     // MARK: - Lifecycle
     
+    #if !targetEnvironment(macCatalyst)
     override init() {
         super.init()
 
@@ -67,6 +70,12 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
                                                queue: nil,
                                                using: { _ in self.setVideoOrientationToInterfaceOrientation() })
     }
+    #else
+    override init() {
+        super.init()
+        // Mac Catalyst doesn't support device orientation notifications
+    }
+    #endif
     
     @available(*, unavailable)
     required init?(coder aDecoder: NSCoder) {
@@ -81,11 +90,13 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
             }
         }
 
+        #if !targetEnvironment(macCatalyst)
         motionManager?.stopAccelerometerUpdates()
 
         NotificationCenter.default.removeObserver(self, name: UIDevice.orientationDidChangeNotification, object: UIDevice.current)
 
         UIDevice.current.endGeneratingDeviceOrientationNotifications()
+        #endif
     }
 
     deinit {
@@ -258,6 +269,17 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     func update(flashMode: FlashMode) {
         self.flashMode = flashMode
     }
+    
+    func update(maxPhotoQualityPrioritization: MaxPhotoQualityPrioritization?) {
+        guard #available(iOS 13.0, *) else { return }
+        guard maxPhotoQualityPrioritization != self.maxPhotoQualityPrioritization else { return }
+        sessionQueue.async {
+            self.session.beginConfiguration()
+            defer { self.session.commitConfiguration() }
+            self.maxPhotoQualityPrioritization = maxPhotoQualityPrioritization
+            self.photoOutput.maxPhotoQualityPrioritization = maxPhotoQualityPrioritization?.avQualityPrioritization ?? .balanced
+        }
+    }
 
     func update(cameraType: CameraType) {
         sessionQueue.async {
@@ -275,6 +297,7 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
 
             self.removeObservers()
             self.session.beginConfiguration()
+            defer { self.session.commitConfiguration() }
 
             // Remove the existing device input first, since using the front and back camera simultaneously is not supported.
             self.session.removeInput(currentViewDeviceInput)
@@ -288,7 +311,6 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
                 self.session.addInput(currentViewDeviceInput)
             }
 
-            self.session.commitConfiguration()
             self.addObservers()
 
             // We need to reapply the configuration after reloading the camera
@@ -325,7 +347,9 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
                 }
 
                 let settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
-                settings.isAutoStillImageStabilizationEnabled = true
+                if #available(iOS 13.0, *) {
+                    settings.photoQualityPrioritization = self.photoOutput.maxPhotoQualityPrioritization
+                }
 
                 if self.videoDeviceInput?.device.isFlashAvailable == true {
                     settings.flashMode = self.flashMode.avFlashMode
@@ -372,6 +396,10 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
                 self.update(torchMode: self.torchMode)
             }
         }
+    }
+
+    func update(barcodeFrameSize: CGSize?) {
+        self.barcodeFrameSize = barcodeFrameSize
     }
 
     func update(scannerFrameSize: CGRect?) {
@@ -475,9 +503,16 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
         }
 
         session.beginConfiguration()
+        defer { session.commitConfiguration() }
 
         session.sessionPreset = .photo
-
+        
+        if #available(iOS 13.0, *) {
+            if let maxPhotoQualityPrioritization {
+                photoOutput.maxPhotoQualityPrioritization = maxPhotoQualityPrioritization.avQualityPrioritization
+            }
+        }
+        
         if session.canAddInput(videoDeviceInput) {
             session.addInput(videoDeviceInput)
 
@@ -510,9 +545,7 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
 
             metadataOutput.metadataObjectTypes = filteredTypes
         }
-
-        session.commitConfiguration()
-
+        
         return .success
     }
 
@@ -572,6 +605,7 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     // MARK: - Private device orientation from accelerometer
 
     private func initializeMotionManager() {
+        #if !targetEnvironment(macCatalyst)
         motionManager = CMMotionManager()
         motionManager?.accelerometerUpdateInterval = 0.2
         motionManager?.gyroUpdateInterval = 0.2
@@ -593,6 +627,7 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
             self.deviceOrientation = newOrientation
             self.onOrientationChange?(["orientation": Orientation.init(from: newOrientation)!.rawValue])
         })
+        #endif
     }
 
     private func deviceOrientation(from acceleration: CMAcceleration) -> UIDeviceOrientation? {
@@ -659,6 +694,7 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     }
 
     private func setVideoOrientationToInterfaceOrientation() {
+        #if !targetEnvironment(macCatalyst)
         var interfaceOrientation: UIInterfaceOrientation
         if #available(iOS 13.0, *) {
             interfaceOrientation = self.previewView.window?.windowScene?.interfaceOrientation ?? .portrait
@@ -666,6 +702,10 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
             interfaceOrientation = UIApplication.shared.statusBarOrientation
         }
         self.cameraPreview.previewLayer.connection?.videoOrientation = self.videoOrientation(from: interfaceOrientation)
+        #else
+        // Mac Catalyst always uses portrait orientation
+        self.cameraPreview.previewLayer.connection?.videoOrientation = .portrait
+        #endif
     }
 
     private func sessionRuntimeError(notification: Notification) {

@@ -18,6 +18,7 @@ class SimulatorCamera: CameraProtocol {
     private var zoom: Double?
     private var maxZoom: Double?
     private var resizeMode: ResizeMode = .contain
+    private var barcodeFrameSize: CGSize?
 
     var previewView: UIView { mockPreview }
 
@@ -118,6 +119,9 @@ class SimulatorCamera: CameraProtocol {
             self.mockPreview.torchModeLabel.text = "Torch mode: \(torchMode)"
         }
     }
+    
+    func update(maxPhotoQualityPrioritization: MaxPhotoQualityPrioritization?) {
+    }
 
     func update(flashMode: FlashMode) {
         DispatchQueue.main.async {
@@ -192,5 +196,9 @@ class SimulatorCamera: CameraProtocol {
                 }
             }
         }
+    }
+
+    func update(barcodeFrameSize: CGSize?) {
+        self.barcodeFrameSize = barcodeFrameSize
     }
 }

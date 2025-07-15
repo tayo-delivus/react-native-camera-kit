@@ -12,7 +12,7 @@ import AVKit
  * Like permission, ratio overlay, focus, zoom gesture, write image, etc
  */
 @objc(CKCameraView)
-class CameraView: UIView {
+public class CameraView: UIView {
     private let camera: CameraProtocol
 
     // Focus
@@ -33,32 +33,35 @@ class CameraView: UIView {
 
     // props
     // camera settings
-    @objc var cameraType: CameraType = .back
-    @objc var resizeMode: ResizeMode = .contain
-    @objc var flashMode: FlashMode = .auto
-    @objc var torchMode: TorchMode = .off
+    @objc public var cameraType: CameraType = .back
+    @objc public var resizeMode: ResizeMode = .contain
+    @objc public var flashMode: FlashMode = .auto
+    @objc public var torchMode: TorchMode = .off
+    @objc public var maxPhotoQualityPrioritization: MaxPhotoQualityPrioritization = .balanced
     // ratio overlay
-    @objc var ratioOverlay: String?
-    @objc var ratioOverlayColor: UIColor?
+    @objc public var ratioOverlay: String?
+    @objc public var ratioOverlayColor: UIColor?
     // scanner
-    @objc var scanBarcode = false
-    @objc var showFrame = false
-    @objc var onReadCode: RCTDirectEventBlock?
-    @objc var scanThrottleDelay = 2000
-    @objc var frameColor: UIColor?
-    @objc var laserColor: UIColor?
-    // other
-    @objc var onOrientationChange: RCTDirectEventBlock?
-    @objc var onZoom: RCTDirectEventBlock?
-    @objc var resetFocusTimeout = 0
-    @objc var resetFocusWhenMotionDetected = false
-    @objc var focusMode: FocusMode = .on
-    @objc var zoomMode: ZoomMode = .on
-    @objc var zoom: NSNumber?
-    @objc var maxZoom: NSNumber?
+    @objc public var scanBarcode = false
+    @objc public var showFrame = false
+    @objc public var onReadCode: RCTDirectEventBlock?
+    @objc public var scanThrottleDelay = 2000
+    @objc public var frameColor: UIColor?
+    @objc public var laserColor: UIColor?
+    @objc public var barcodeFrameSize: NSDictionary?
 
-    @objc var onCaptureButtonPressIn: RCTDirectEventBlock?
-    @objc var onCaptureButtonPressOut: RCTDirectEventBlock?
+    // other
+    @objc public var onOrientationChange: RCTDirectEventBlock?
+    @objc public var onZoom: RCTDirectEventBlock?
+    @objc public var resetFocusTimeout = 0
+    @objc public var resetFocusWhenMotionDetected = false
+    @objc public var focusMode: FocusMode = .on
+    @objc public var zoomMode: ZoomMode = .on
+    @objc public var zoom: NSNumber?
+    @objc public var maxZoom: NSNumber?
+
+    @objc public var onCaptureButtonPressIn: RCTDirectEventBlock?
+    @objc public var onCaptureButtonPressOut: RCTDirectEventBlock?
     
     var eventInteraction: Any? = nil
 
@@ -79,7 +82,12 @@ class CameraView: UIView {
     private func setupCamera() {
         if hasPropBeenSetup && hasPermissionBeenGranted && !hasCameraBeenSetup {
             hasCameraBeenSetup = true
+            #if targetEnvironment(macCatalyst)
+            // Force front camera on Mac Catalyst during initial setup
+            camera.setup(cameraType: .front, supportedBarcodeType: scanBarcode && onReadCode != nil ? supportedBarcodeType : [])
+            #else
             camera.setup(cameraType: cameraType, supportedBarcodeType: scanBarcode && onReadCode != nil ? supportedBarcodeType : [])
+            #endif
         }
     }
 
@@ -123,6 +131,7 @@ class CameraView: UIView {
     }
     
     private func configureHardwareInteraction() {
+        #if !targetEnvironment(macCatalyst)
         // Create a new capture event interaction with a handler that captures a photo.
         if #available(iOS 17.2, *) {
             let interaction = AVCaptureEventInteraction { event in
@@ -137,11 +146,10 @@ class CameraView: UIView {
             self.addInteraction(interaction)
             eventInteraction = interaction
         }
+        #endif
     }
-    
 
-
-    override func removeFromSuperview() {
+    override public func removeFromSuperview() {
         camera.cameraRemovedFromSuperview()
 
         super.removeFromSuperview()
@@ -149,9 +157,12 @@ class CameraView: UIView {
 
     // MARK: React lifecycle
 
-    override func reactSetFrame(_ frame: CGRect) {
+    override public func reactSetFrame(_ frame: CGRect) {
         super.reactSetFrame(frame)
-
+        self.updateSubviewsBounds(frame)
+    }
+    
+    @objc public func updateSubviewsBounds(_ frame: CGRect) {
         camera.previewView.frame = bounds
 
         scannerInterfaceView.frame = bounds
@@ -163,25 +174,33 @@ class CameraView: UIView {
         ratioOverlayView?.frame = bounds
     }
 
-    override func removeReactSubview(_ subview: UIView) {
+    override public func removeReactSubview(_ subview: UIView) {
         subview.removeFromSuperview()
         super.removeReactSubview(subview)
     }
 
     // Called once when all props have been set, then every time one is updated
     // swiftlint:disable:next cyclomatic_complexity function_body_length
-    override func didSetProps(_ changedProps: [String]) {
+    override public func didSetProps(_ changedProps: [String]) {
         hasPropBeenSetup = true
 
         // Camera settings
         if changedProps.contains("cameraType") {
+            #if targetEnvironment(macCatalyst)
+            // Force front camera on Mac Catalyst regardless of what's passed
+            camera.update(cameraType: .front)
+            #else
             camera.update(cameraType: cameraType)
+            #endif
         }
         if changedProps.contains("flashMode") {
             camera.update(flashMode: flashMode)
         }
         if changedProps.contains("cameraType") || changedProps.contains("torchMode") {
             camera.update(torchMode: torchMode)
+        }
+        if changedProps.contains("maxPhotoQualityPrioritization") {
+            camera.update(maxPhotoQualityPrioritization: maxPhotoQualityPrioritization)
         }
 
         if changedProps.contains("onOrientationChange") {
@@ -224,13 +243,18 @@ class CameraView: UIView {
                                            })
         }
 
-
-
         if changedProps.contains("showFrame") || changedProps.contains("scanBarcode") {
             DispatchQueue.main.async {
                 self.scannerInterfaceView.isHidden = !self.showFrame
 
                 self.camera.update(scannerFrameSize: self.showFrame ? self.scannerInterfaceView.frameSize : nil)
+            }
+        }
+        
+        if changedProps.contains("barcodeFrameSize"), let barcodeFrameSize, showFrame, scanBarcode {
+            if let width = barcodeFrameSize["width"] as? CGFloat, let height = barcodeFrameSize["height"] as? CGFloat {
+                scannerInterfaceView.update(frameSize: CGSize(width: width, height: height))
+                camera.update(scannerFrameSize: showFrame ? scannerInterfaceView.frameSize : nil)
             }
         }
 
@@ -268,7 +292,7 @@ class CameraView: UIView {
 
     // MARK: Public
 
-    func capture(onSuccess: @escaping (_ imageObject: [String: Any]) -> Void,
+    @objc public func capture(onSuccess: @escaping (_ imageObject: [String: Any]) -> Void,
                  onError: @escaping (_ error: String) -> Void) {
         camera.capturePicture(onWillCapture: { [weak self] in
             // Flash/dim preview to indicate shutter action
@@ -309,6 +333,26 @@ class CameraView: UIView {
     }
 
     private func handleCameraPermission() {
+        #if targetEnvironment(macCatalyst)
+        // On macOS, camera permissions are handled differently
+        if #available(macCatalyst 14.0, *) {
+            switch AVCaptureDevice.authorizationStatus(for: .video) {
+            case .authorized:
+                hasPermissionBeenGranted = true
+            case .notDetermined:
+                AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                    if granted {
+                        DispatchQueue.main.async {
+                            self?.hasPermissionBeenGranted = true
+                        }
+                    }
+                }
+            default:
+                break
+            }
+        }
+        #else
+        // iOS permission handling
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             // The user has previously granted access to the camera.
@@ -324,6 +368,7 @@ class CameraView: UIView {
             // The user has previously denied access.
             break
         }
+        #endif
     }
 
     private func writeCaptured(imageData: Data,

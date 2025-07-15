@@ -1,8 +1,10 @@
-import React, { useState, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image, SafeAreaView, Animated, StatusBar } from 'react-native';
+import type React from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Image, SafeAreaView, Animated, StatusBar, ScrollView } from 'react-native';
 import Camera from '../../src/Camera';
-import { CameraApi, CameraType, CaptureData } from '../../src/types';
+import { type CameraApi, CameraType, type CaptureData } from '../../src/types';
 import { Orientation } from '../../src';
+import type { CameraProps } from '../../src/CameraProps';
 
 const flashImages = {
   on: require('../images/flashOn.png'),
@@ -24,6 +26,12 @@ const flashArray = [
     image: flashImages.off,
   },
 ] as const;
+
+function median(values: number[]): number {
+  const sortedValues = [...values].sort((a, b) => a - b);
+  const half = Math.floor(sortedValues.length / 2);
+  return sortedValues.length % 2 ? sortedValues[half] : (sortedValues[half - 1] + sortedValues[half]) / 2;
+}
 
 const CameraExample = ({ onBack }: { onBack: () => void }) => {
   const cameraRef = useRef<CameraApi>(null);
@@ -47,11 +55,11 @@ const CameraExample = ({ onBack }: { onBack: () => void }) => {
     const numberTook = captureImages.length;
     if (numberTook >= 2) {
       return numberTook;
-    } else if (captured) {
+    } 
+    if (captured) {
       return '1';
-    } else {
-      return '';
     }
+    return '';
   };
 
   const onSwitchCameraPressed = () => {
@@ -79,33 +87,39 @@ const CameraExample = ({ onBack }: { onBack: () => void }) => {
   };
 
   const onCaptureImagePressed = async () => {
-    if (showImageUri) {
-      setShowImageUri('');
-      return;
-    }
-    if (!cameraRef.current || isCapturing.current) return;
-    let image: CaptureData | undefined;
-    try {
-      isCapturing.current = true;
-      image = await cameraRef.current.capture();
-    } catch (e) {
-      console.log('error', e);
-    } finally {
-      isCapturing.current = false;
-    }
-    if (!image) return;
+    const times: number[] = [];
+    for (let i = 1; i <= 5; i++) {
+      const start = Date.now();
+      if (showImageUri) {
+        setShowImageUri('');
+        return;
+      }
+      if (!cameraRef.current || isCapturing.current) return;
+      let image: CaptureData | undefined;
+      try {
+        isCapturing.current = true;
+        image = await cameraRef.current.capture();
+      } catch (e) {
+        console.log('error', e);
+      } finally {
+        isCapturing.current = false;
+      }
+      if (!image) return;
 
-    setCaptured(true);
-    setCaptureImages([...captureImages, image]);
-    console.log('image', image);
+      setCaptured(true);
+      setCaptureImages(prev => [...prev, image]);
+      console.log('image', image);
+      times.push(Date.now() - start);
+    }
+    console.log(`median capture time: ${median(times)}ms`);
   };
 
   function CaptureButton({ onPress, children }: { onPress: () => void; children?: React.ReactNode }) {
-    const w = 80,
-      brdW = 4,
-      spc = 6;
-    const cInner = 'white',
-      cOuter = 'white';
+    const w = 80;
+    const brdW = 4;
+    const spc = 6;
+    const cInner = 'white';
+    const cOuter = 'white';
     return (
       <TouchableOpacity onPress={onPress} style={{ width: w, height: w }}>
         <View
@@ -157,7 +171,6 @@ const CameraExample = ({ onBack }: { onBack: () => void }) => {
 
   return (
     <View style={styles.screen}>
-      <StatusBar hidden />
       <SafeAreaView style={styles.topButtons}>
         {flashData.image && (
           <TouchableOpacity style={styles.topButton} onPress={onSetFlash}>
@@ -202,7 +215,12 @@ const CameraExample = ({ onBack }: { onBack: () => void }) => {
 
       <View style={styles.cameraContainer}>
         {showImageUri ? (
-          <Image source={{ uri: showImageUri }} style={styles.cameraPreview} resizeMode="contain" />
+          <ScrollView
+            maximumZoomScale={10}
+            contentContainerStyle={{ flexGrow: 1 }}
+          >
+            <Image source={{ uri: showImageUri }} style={styles.cameraPreview} />
+          </ScrollView>
         ) : (
           <Camera
             ref={cameraRef}
@@ -219,6 +237,7 @@ const CameraExample = ({ onBack }: { onBack: () => void }) => {
             }}
             torchMode={torchMode ? 'on' : 'off'}
             shutterPhotoSound
+            maxPhotoQualityPrioritization="speed"
             onCaptureButtonPressIn={() => {
               console.log('capture button pressed in');
             }}
@@ -322,8 +341,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cameraPreview: {
-    flex: 1,
     width: '100%',
+    height: '100%',
   },
   bottomButtons: {
     margin: 10,

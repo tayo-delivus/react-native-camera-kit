@@ -7,7 +7,7 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
-  "version": "14.0.0-beta15",
+  "version": "15.1.0",
   "description": "A high performance, fully featured, rock solid camera library for React Native applications",
   "nativePackage": true,
   "scripts": {
@@ -57,5 +57,13 @@
   "engines": {
     "node": ">=18"
   },
-  "packageManager": "yarn@3.6.4"
+  "codegenConfig": {
+    "name": "rncamerakit_specs",
+    "type": "all",
+    "jsSrcsDir": "src/specs",
+    "android": {
+      "javaPackageName": "com.rncamerakit"
+    }
+  },
+  "packageManager": "yarn@1.22.22"
 }

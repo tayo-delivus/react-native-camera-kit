@@ -52,6 +52,30 @@ public enum FlashMode: Int, CustomStringConvertible {
     }
 }
 
+@objc(CKMaxPhotoQualityPrioritization)
+public enum MaxPhotoQualityPrioritization: Int, CustomStringConvertible {
+    case speed
+    case balanced
+    case quality
+    
+    @available(iOS 13.0, *)
+    var avQualityPrioritization: AVCapturePhotoOutput.QualityPrioritization {
+        switch self {
+        case .speed: return .speed
+        case .balanced: return .balanced
+        case .quality: return .quality
+        }
+    }
+
+    public var description: String {
+        switch self {
+        case .speed: return "speed"
+        case .balanced: return "balanced"
+        case .quality: return "quality"
+        }
+    }
+}
+
 @objc(CKTorchMode)
 public enum TorchMode: Int, CustomStringConvertible {
     case on

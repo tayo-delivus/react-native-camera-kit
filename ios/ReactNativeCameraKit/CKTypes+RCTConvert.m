@@ -11,7 +11,7 @@
 #import "RCTConvert.h"
 #endif
 
-#import "ReactNativeCameraKit-Swift.h"
+#import "ReactNativeCameraKit-Swift.pre.h"
 
 @implementation RCTConvert (CKTypes)
 
@@ -25,6 +25,12 @@ RCT_ENUM_CONVERTER(CKFlashMode, (@{
     @"off": @(CKFlashModeOff),
     @"auto": @(CKFlashModeAuto)
 }), CKFlashModeAuto, integerValue)
+
+RCT_ENUM_CONVERTER(CKMaxPhotoQualityPrioritization, (@{
+    @"balanced": @(CKMaxPhotoQualityPrioritizationBalanced),
+    @"quality": @(CKMaxPhotoQualityPrioritizationQuality),
+    @"speed": @(CKMaxPhotoQualityPrioritizationSpeed)
+}), CKMaxPhotoQualityPrioritizationBalanced, integerValue)
 
 RCT_ENUM_CONVERTER(CKTorchMode, (@{
     @"on": @(CKTorchModeOn),
