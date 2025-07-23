@@ -10,14 +10,12 @@ package com.rncamerakit
    import com.google.mlkit.vision.common.InputImage
 
    class QRCodeAnalyzer (
-       private val onQRCodesDetected: (qrCodes: List<Barcode>, imageSize: Size) -> Unit
+       private val onQRCodesDetected: (qrCodes: List<Barcode>) -> Unit
    ) : ImageAnalysis.Analyzer {
        @SuppressLint("UnsafeExperimentalUsageError")
        @ExperimentalGetImage
        override fun analyze(image: ImageProxy) {
-           val mediaImage = image.image ?: return
-
-           val inputImage = InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
+           val inputImage = InputImage.fromMediaImage(image.image!!, image.imageInfo.rotationDegrees)
 
            val scanner = BarcodeScanning.getClient()
            scanner.process(inputImage)
@@ -26,7 +24,7 @@ package com.rncamerakit
                    barcodes.forEach { barcode ->
                        strBarcodes.add(barcode ?: return@forEach)
                    }
-                   onQRCodesDetected(strBarcodes, Size(image.width, image.height))
+                   onQRCodesDetected(strBarcodes)
                }
                .addOnCompleteListener {
                    image.close()
