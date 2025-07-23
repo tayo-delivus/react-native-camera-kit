@@ -306,7 +306,7 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         val useCases = mutableListOf(preview, imageCapture)
 
         if (scanBarcode) {
-                    val analyzer = QRCodeAnalyzer { barcodes, imageSize ->
+                    val analyzer = QRCodeAnalyzer { barcodes ->
                         if (barcodes.isNotEmpty()) {
                             onBarcodeRead(barcodes)
                         }
