@@ -336,10 +336,15 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
             val viewH = viewFinder.height.toFloat().coerceAtLeast(1f)
             val r = bf.frameRect // View 좌표(pixels)
             
-            RectF(r.left / vw, r.top / vh, r.right / vw, r.bottom / vh)
+            RectF(
+                (r.left   / viewW).coerceIn(0f, 1f),
+                (r.top    / viewH).coerceIn(0f, 1f),
+                (r.right  / viewW).coerceIn(0f, 1f),
+                (r.bottom / viewH).coerceIn(0f, 1f)
+            )
         }
         val analyzer = QRCodeAnalyzer(
-            onQRCodesDetected = { filtered, _ ->
+            onQRCodesDetected = { filtered: List<Barcode>, _: Size ->
                 if (filtered.isNotEmpty()) onBarcodeRead(filtered)
             },
             scanThrottleDelay = scanThrottleDelay,
@@ -347,7 +352,7 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
             containmentEpsilonPx = 1 // 경계 오차 미세 허용 권장
         )
         imageAnalyzer!!.setAnalyzer(cameraExecutor, analyzer)
-        // useCases.add(imageAnalyzer)
+        useCases.add(imageAnalyzer)
         }
 
         // Must unbind the use-cases before rebinding them
