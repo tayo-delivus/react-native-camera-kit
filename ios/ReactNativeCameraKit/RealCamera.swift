@@ -9,13 +9,14 @@ import AVFoundation
 import UIKit
 import CoreMotion
 import React
+import Vision
 
 /*
  * Real camera implementation that uses AVFoundation
  */
 // swiftlint:disable:next type_body_length
 class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelegate {
-    var previewView: UIView { cameraPreview }
+    let previewView = UIView()
 
     private let cameraPreview = RealPreviewView(frame: .zero)
     private let session = AVCaptureSession()
@@ -45,6 +46,19 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     private var lastOnZoom: Double?
     private var zoom: Double?
     private var maxZoom: Double?
+    
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    
+    private var videoDataOutput: AVCaptureVideoDataOutput? // Vision 사용할 경우
+    
+    private var usesVision = false
+    private var visionRequest: VNDetectBarcodesRequest?
+    private let visionHandler = VNSequenceRequestHandler()
+
+    private var rectInPreviewSpace: CGRect?
+    private var restrictToFrame = false
+
+    private var onBarcodeRead: ((_ code: String, _ fmt: CodeFormat) -> Void)?
 
     // orientation
     private var deviceOrientation = UIDeviceOrientation.unknown
@@ -317,15 +331,42 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     }
 
     func update(resizeMode: ResizeMode) {
-        DispatchQueue.main.async {
-            switch resizeMode {
-            case .cover:
-                self.cameraPreview.previewLayer.videoGravity = .resizeAspectFill
-            case .contain:
-                self.cameraPreview.previewLayer.videoGravity = .resizeAspect
-            }
+      let gravity: AVLayerVideoGravity = {
+        switch resizeMode {
+          case .cover: return .resizeAspectFill   
+          case .contain: return .resizeAspect     
+          case .stretch: return .resize
         }
+      }()
+      previewLayer?.videoGravity = gravity
     }
+
+    func updateScannerRectInPreview(_ rectInPreview: CGRect?, restrictToFrame: Bool) {
+      self.rectInPreviewSpace = rectInPreview
+      self.restrictToFrame = restrictToFrame
+      guard let pl = previewLayer else { return }
+    
+      // ① 메타데이터 방식: rectOfInterest (정규화, 원점 좌상)
+      if let metadataOutput {
+        if let r = rectInPreview {
+          let metaRect = pl.metadataOutputRectConverted(fromLayerRect: r)
+          metadataOutput.rectOfInterest = restrictToFrame ? metaRect : CGRect(x: 0, y: 0, width: 1, height: 1)
+        } else {
+          metadataOutput.rectOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
+        }
+      }
+    
+      // ② Vision 방식: request.regionOfInterest (정규화, 원점 좌하)
+      if usesVision, let request = visionRequest {
+        let metaRect = rectInPreview.map { pl.metadataOutputRectConverted(fromLayerRect: $0) } ?? CGRect(x: 0, y: 0, width: 1, height: 1)
+        let visionROI = CGRect(x: metaRect.origin.x,
+                               y: 1.0 - metaRect.origin.y - metaRect.size.height,
+                               width: metaRect.size.width,
+                               height: metaRect.size.height)
+        request.regionOfInterest = restrictToFrame ? visionROI : CGRect(x: 0, y: 0, width: 1, height: 1)
+      }
+    }
+
 
     func capturePicture(onWillCapture: @escaping () -> Void,
                         onSuccess: @escaping (_ imageData: Data, _ thumbnailData: Data?, _ dimensions: CMVideoDimensions) -> Void,
@@ -373,25 +414,46 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
         }
     }
 
-    func isBarcodeScannerEnabled(_ isEnabled: Bool,
-                                 supportedBarcodeTypes supportedBarcodeType: [CodeFormat],
-                                 onBarcodeRead: ((_ barcode: String,_ codeFormat:CodeFormat) -> Void)?) {
-        sessionQueue.async {
-            self.onBarcodeRead = onBarcodeRead
-            let newTypes: [AVMetadataObject.ObjectType]
-            if isEnabled && onBarcodeRead != nil {
-                let availableTypes = self.metadataOutput.availableMetadataObjectTypes
-                newTypes = supportedBarcodeType.map { $0.toAVMetadataObjectType() }
-                                                        .filter { availableTypes.contains($0) }
-            } else {
-                newTypes = []
-            }
+    func isBarcodeScannerEnabled(_ enabled: Bool,
+                               supportedBarcodeTypes: [CodeFormat],
+                               onBarcodeRead: @escaping (_ barcode: String, _ codeFormat: CodeFormat) -> Void) {
+    self.onBarcodeRead = onBarcodeRead
+    usesVision = false
 
-            if self.metadataOutput.metadataObjectTypes != newTypes {
-                self.metadataOutput.metadataObjectTypes = newTypes
-            }
-        }
+    if enabled {
+      let session = AVCaptureSession()
+      self.session = session
+
+      guard let device = AVCaptureDevice.default(for: .video),
+            let input = try? AVCaptureDeviceInput(device: device) else { return }
+      session.addInput(input)
+
+      let metadataOutput = AVCaptureMetadataOutput()
+      self.metadataOutput = metadataOutput
+      session.addOutput(metadataOutput)
+      metadataOutput.setMetadataObjectsDelegate(self, queue: .main)
+      metadataOutput.metadataObjectTypes = supportedBarcodeTypes.map { $0.toAVMetadataObjectType() }
+
+      // previewLayer 구성
+      let layer = AVCaptureVideoPreviewLayer(session: session)
+      layer.frame = previewView.bounds
+      if previewLayer == nil { layer.videoGravity = .resizeAspectFill } // 초기값
+      else { layer.videoGravity = previewLayer!.videoGravity }
+      previewView.layer.sublayers?.forEach { $0.removeFromSuperlayer() }
+      previewView.layer.addSublayer(layer)
+      previewLayer = layer
+
+      // 현재 프레임 ROI 반영
+      updateScannerRectInPreview(rectInPreviewSpace, restrictToFrame: restrictToFrame)
+
+      session.startRunning()
+    } else {
+      session?.stopRunning()
+      session = nil
+      metadataOutput = nil
     }
+  }
+
 
     func update(barcodeFrameSize: CGSize?) {
         self.barcodeFrameSize = barcodeFrameSize
@@ -424,17 +486,32 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
 
     // MARK: - AVCaptureMetadataOutputObjectsDelegate
 
-    func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
-        // Try to retrieve the barcode from the metadata extracted
-        guard let machineReadableCodeObject = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
-              let codeStringValue = machineReadableCodeObject.stringValue else {
-            return
-        }
-        // Determine the barcode type and convert it to CodeFormat
-          let barcodeType = CodeFormat.fromAVMetadataObjectType(machineReadableCodeObject.type)
+    public func metadataOutput(_ output: AVCaptureMetadataOutput,
+                             didOutput metadataObjects: [AVMetadataObject],
+                             from connection: AVCaptureConnection) {
+    guard let pl = previewLayer, !metadataObjects.isEmpty else { return }
 
-        onBarcodeRead?(codeStringValue,barcodeType)
+    // rectOfInterest로 이미 제한되지만, 프레임 밖 차단을 더 확실히:
+    if let frameRect = rectInPreviewSpace, restrictToFrame {
+      let allowed = metadataObjects.compactMap { obj -> AVMetadataMachineReadableCodeObject? in
+        guard let code = obj as? AVMetadataMachineReadableCodeObject,
+              let tr = pl.transformedMetadataObject(for: code) as? AVMetadataMachineReadableCodeObject
+        else { return nil }
+        // 완전 포함만 통과 (필요시 epsilon 확장)
+        let epsilon: CGFloat = 0
+        let expanded = frameRect.insetBy(dx: -epsilon, dy: -epsilon)
+        return expanded.contains(tr.bounds) ? code : nil
+      }
+      guard let first = allowed.first, let value = first.stringValue else { return }
+      onBarcodeRead?(value, CodeFormat.from(avType: first.type))
+    } else {
+      // 프레임 미사용 시: 첫 결과
+      if let first = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
+         let value = first.stringValue {
+        onBarcodeRead?(value, CodeFormat.from(avType: first.type))
+      }
     }
+  }
 
     // MARK: - Private
 
@@ -486,6 +563,43 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
             return device // single-lens/physical device
         }
         return nil
+    
+
+        private func setupVision(_ enabled: Bool, supported: [CodeFormat]) {
+      usesVision = enabled
+      if enabled {
+        visionRequest = VNDetectBarcodesRequest { [weak self] req, _ in
+          guard let self, let pl = self.previewLayer else { return }
+          let results = (req.results as? [VNBarcodeObservation]) ?? []
+          guard !results.isEmpty else { return }
+    
+          if let frameRect = self.rectInPreviewSpace, self.restrictToFrame {
+            let filtered = results.compactMap { obs -> VNBarcodeObservation? in
+              // Vision bbox: 정규화(원점 좌하) → metadata → layer
+              let rMeta = CGRect(x: obs.boundingBox.origin.x,
+                                 y: 1 - obs.boundingBox.origin.y - obs.boundingBox.size.height,
+                                 width: obs.boundingBox.size.width,
+                                 height: obs.boundingBox.size.height)
+              let layerRect = pl.layerRectConverted(fromMetadataOutputRect: rMeta)
+              let epsilon: CGFloat = 0
+              return frameRect.insetBy(dx: -epsilon, dy: -epsilon).contains(layerRect) ? obs : nil
+            }
+            if let first = filtered.first, let payload = first.payloadStringValue {
+              onBarcodeRead?(payload, CodeFormat.from(visionSymbology: first.symbology))
+            }
+          } else {
+            if let first = results.first, let payload = first.payloadStringValue {
+              onBarcodeRead?(payload, CodeFormat.from(visionSymbology: first.symbology))
+            }
+          }
+        }
+        // ROI 초기 설정
+        if let pl = previewLayer {
+          updateScannerRectInPreview(rectInPreviewSpace, restrictToFrame: restrictToFrame)
+        }
+      } else {
+        visionRequest = nil
+      }
     }
 
     private func setupCaptureSession(cameraType: CameraType,
