@@ -330,36 +330,29 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         val useCases = mutableListOf(preview, imageCapture)
 
     if (scanBarcode) {
-        val analyzer = QRCodeAnalyzer(analyzerBlock@{ barcodes, imageSize ->
-                if (barcodes.isEmpty()) {
-                    return@analyzerBlock
-                }
-
-                val barcodeFrame = barcodeFrame
-                if (barcodeFrame == null) {
-                    onBarcodeRead(barcodes)
-                    return@analyzerBlock
-                }
-
-                // Calculate scaling factors (image is always rotated by 90 degrees)
-                val scaleX = viewFinder.width.toFloat() / imageSize.height
-                val scaleY = viewFinder.height.toFloat() / imageSize.width
-
-                val filteredBarcodes = barcodes.filter { barcode ->
-                    val barcodeBoundingBox = barcode.boundingBox ?: return@filter false;
-                    val scaledBarcodeBoundingBox = Rect(
-                        (barcodeBoundingBox.left * scaleX).toInt(),
-                        (barcodeBoundingBox.top * scaleY).toInt(),
-                        (barcodeBoundingBox.right * scaleX).toInt(),
-                        (barcodeBoundingBox.bottom * scaleY).toInt()
-                    )
-                    barcodeFrame.frameRect.contains(scaledBarcodeBoundingBox)
-                }
-
-                if (filteredBarcodes.isNotEmpty()) {
-                    onBarcodeRead(filteredBarcodes)
-                }
-            }, scanThrottleDelay)
+        val normalizedFrame: RectF? = barcodeFrame?.let { bf ->
+            val viewW = viewFinder.width.toFloat().coerceAtLeast(1f)
+            val viewH = viewFinder.height.toFloat().coerceAtLeast(1f)
+            val r = bf.frameRect // View 좌표(pixels)
+            // 0~1 정규화
+            RectF(
+                (r.left   / viewW).coerceIn(0f, 1f),
+                (r.top    / viewH).coerceIn(0f, 1f),
+                (r.right  / viewW).coerceIn(0f, 1f),
+                (r.bottom / viewH).coerceIn(0f, 1f)
+            )
+        }
+        val analyzer = QRCodeAnalyzer(
+                onQRCodesDetected = { filtered, imageSize ->
+                    if (filtered.isNotEmpty()) {
+                        onBarcodeRead(filtered)
+                    }
+                },
+                scanThrottleDelay = scanThrottleDelay,
+                normalizedFrame = normalizedFrame,
+                requireFullContainment = true,
+                minIntersectRatio = 0.75f 
+            )
             imageAnalyzer!!.setAnalyzer(cameraExecutor, analyzer)
             useCases.add(imageAnalyzer)
         }
