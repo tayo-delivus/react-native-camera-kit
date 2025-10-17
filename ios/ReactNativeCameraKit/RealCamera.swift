@@ -420,30 +420,30 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
         }
     }
 
-    func update(scannerFrameSize: CGRect?) {
-        guard self.scannerFrameSize != scannerFrameSize else { return }
-        self.sessionQueue.async {
-            self.scannerFrameSize = scannerFrameSize
-            if !self.session.isRunning {
-                return
-            }
+    // func update(scannerFrameSize: CGRect?) {
+    //     guard self.scannerFrameSize != scannerFrameSize else { return }
+    //     self.sessionQueue.async {
+    //         self.scannerFrameSize = scannerFrameSize
+    //         if !self.session.isRunning {
+    //             return
+    //         }
 
-            DispatchQueue.main.async {
-                var visibleRect: CGRect?
-                if scannerFrameSize != nil && scannerFrameSize != .zero {
-                    visibleRect = self.cameraPreview.previewLayer.metadataOutputRectConverted(fromLayerRect: scannerFrameSize!)
-                }
+    //         DispatchQueue.main.async {
+    //             var visibleRect: CGRect?
+    //             if scannerFrameSize != nil && scannerFrameSize != .zero {
+    //                 visibleRect = self.cameraPreview.previewLayer.metadataOutputRectConverted(fromLayerRect: scannerFrameSize!)
+    //             }
 
-                self.sessionQueue.async {
-                    if self.metadataOutput.rectOfInterest == visibleRect {
-                        return
-                    }
+    //             self.sessionQueue.async {
+    //                 if self.metadataOutput.rectOfInterest == visibleRect {
+    //                     return
+    //                 }
 
-                    self.metadataOutput.rectOfInterest = visibleRect ?? CGRect(x: 0, y: 0, width: 1, height: 1)
-                }
-            }
-        }
-    }
+    //                 self.metadataOutput.rectOfInterest = visibleRect ?? CGRect(x: 0, y: 0, width: 1, height: 1)
+    //             }
+    //         }
+    //     }
+    // }
 
     // MARK: - AVCaptureMetadataOutputObjectsDelegate
 
