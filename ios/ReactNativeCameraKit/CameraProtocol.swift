@@ -29,7 +29,7 @@ protocol CameraProtocol: AnyObject, FocusInterfaceViewDelegate {
                                  supportedBarcodeTypes: [CodeFormat],
                                  onBarcodeRead: ((_ barcode: String, _ codeFormat: CodeFormat) -> Void)?)
 
-    func update(scannerFrameSize: CGRect?)
+    // func update(scannerFrameSize: CGRect?)
     func update(scannerFrame: CGRect?)
 
     func capturePicture(onWillCapture: @escaping () -> Void,
