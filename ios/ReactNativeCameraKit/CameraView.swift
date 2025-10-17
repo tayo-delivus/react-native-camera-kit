@@ -215,7 +215,10 @@ public class CameraView: UIView {
         scannerInterfaceView.frame = bounds
         // If frame size changes, we have to update the scanner
         // camera.update(scannerFrameSize: showFrame ? scannerInterfaceView.frameSize : nil)
-        camera.update(scannerFrame: showFrame ? scannerInterfaceView.frameOfInterest : nil)
+        let rect = showFrame
+           ? scannerInterfaceView.convert(scannerInterfaceView.bounds, to: camera.previewView)
+           : nil
+        camera.update(scannerFrame: rect)
         
         focusInterfaceView.frame = bounds
 
