@@ -461,7 +461,7 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
         if let layerRect = self.scannerFrameLayerRect {
             var isInside = false
             DispatchQueue.main.sync {
-                if let transformed = self.cameraPreview.previewLayer.transformedMetadataObject(raw)
+                if let transformed = self.cameraPreview.previewLayer.transformedMetadataObject(for: machineReadableCodeObject)
                     as? AVMetadataMachineReadableCodeObject {
                     let b = transformed.bounds
                     isInside = layerRect.contains(b)
