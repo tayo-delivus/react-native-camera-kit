@@ -402,6 +402,10 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
         }
     }
 
+    func update(barcodeFrameSize: CGSize?) {
+        self.barcodeFrameSize = barcodeFrameSize
+    }
+
     func update(scannerFrame: CGRect?) {
         // 이 함수는 UI 업데이트와 관련되어 있으므로 메인 스레드에서 호출됩니다.
         // AVCaptureVideoPreviewLayer에 접근하기 위해 메인 스레드에서 좌표 변환을 수행합니다.
