@@ -38,8 +38,8 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     private var resetFocus: (() -> Void)?
     private var focusFinished: (() -> Void)?
     private var onBarcodeRead: ((_ barcode: String,_ codeFormat : CodeFormat) -> Void)?
-    private var scannerFrameSize: CGRect? = nil
-    // private var barcodeFrameSize: CGSize? = nil
+    // private var scannerFrameSize: CGRect? = nil
+    private var barcodeFrameSize: CGSize? = nil
     private var onOrientationChange: RCTDirectEventBlock?
     private var onZoomCallback: RCTDirectEventBlock?
     private var lastOnZoom: Double?
