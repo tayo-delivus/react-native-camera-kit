@@ -177,7 +177,7 @@ public class CameraView: UIView {
 
     private func currentScannerRectInPreview() -> CGRect? {
         guard showFrame else { return nil }
-        return scannerInterfaceView.convert(scannerInterfaceView.bounds, to: camera.previewView)
+        return scannerInterfaceView.convert(scannerInterfaceView.frameOfInterest, to: camera.previewView)
     }
 
     override public func didMoveToWindow() {
@@ -216,7 +216,7 @@ public class CameraView: UIView {
         // If frame size changes, we have to update the scanner
         // camera.update(scannerFrameSize: showFrame ? scannerInterfaceView.frameSize : nil)
         let rect = showFrame
-           ? scannerInterfaceView.convert(scannerInterfaceView.bounds, to: camera.previewView)
+           ? scannerInterfaceView.convert(scannerInterfaceView.frameOfInterest, to: camera.previewView)
            : nil
         camera.update(scannerFrame: rect)
         
@@ -302,12 +302,12 @@ public class CameraView: UIView {
                 self.layoutIfNeeded()
                 self.scannerInterfaceView.layoutIfNeeded()
                 let r1 = self.showFrame
-                    ? self.scannerInterfaceView.convert(self.scannerInterfaceView.bounds, to: self.camera.previewView)
+                    ? self.scannerInterfaceView.convert(self.scannerInterfaceView.frameOfInterest, to: self.camera.previewView)
                     : nil
                 self.camera.update(scannerFrame: r1)
                 DispatchQueue.main.async {
                     let r2 = self.showFrame
-                        ? self.scannerInterfaceView.convert(self.scannerInterfaceView.bounds, to: self.camera.previewView)
+                        ? self.scannerInterfaceView.convert(self.scannerInterfaceView.frameOfInterest, to: self.camera.previewView)
                         : nil
                     self.camera.update(scannerFrame: r2)
                 }
@@ -318,10 +318,10 @@ public class CameraView: UIView {
             if let width = barcodeFrameSize["width"] as? CGFloat, let height = barcodeFrameSize["height"] as? CGFloat {
                 scannerInterfaceView.update(frameSize: CGSize(width: width, height: height))
                 // camera.update(scannerFrameSize: showFrame ? scannerInterfaceView.frameSize : nil)
-                let r1 = self.scannerInterfaceView.convert(self.scannerInterfaceView.bounds, to: self.camera.previewView)
+                let r1 = self.scannerInterfaceView.convert(self.scannerInterfaceView.frameOfInterest, to: self.camera.previewView)
                 self.camera.update(scannerFrame: showFrame ? r1 : nil)
                 DispatchQueue.main.async {
-                    let r2 = self.scannerInterfaceView.convert(self.scannerInterfaceView.bounds, to: self.camera.previewView)
+                    let r2 = self.scannerInterfaceView.convert(self.scannerInterfaceView.frameOfInterest, to: self.camera.previewView)
                     self.camera.update(scannerFrame: showFrame ? r2 : nil)
                 }
             }
@@ -374,7 +374,7 @@ public class CameraView: UIView {
         // 3) scannerInterfaceView.bounds(자기 좌표) -> camera.previewView 좌표로 변환
         //    **camera.previewView는 RealCamera.previewView와 동일한 뷰**
         let rectInPreviewView = self.scannerInterfaceView.convert(
-            self.scannerInterfaceView.bounds,
+            self.scannerInterfaceView.frameOfInterest,
             to: self.camera.previewView
         )
 
@@ -384,7 +384,7 @@ public class CameraView: UIView {
         // 5) 레이아웃/세션 타이밍 이슈 대비: 다음 런루프에서 한 번 더 적용
         DispatchQueue.main.async {
             let rectAgain = self.scannerInterfaceView.convert(
-                self.scannerInterfaceView.bounds,
+                self.scannerInterfaceView.frameOfInterest,
                 to: self.camera.previewView
             )
             self.camera.update(scannerFrame: rectAgain)
