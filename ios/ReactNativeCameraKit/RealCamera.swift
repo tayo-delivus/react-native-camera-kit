@@ -420,7 +420,7 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
             .map { self.cameraPreview.previewLayer.metadataOutputRectConverted(fromLayerRect: $0) }
             ?? CGRect(x: 0, y: 0, width: 1, height: 1)
         
-        sessionQueue.async {
+        self.sessionQueue.async {
             self.metadataOutput.rectOfInterest = rectOfInterest
         }
     }
@@ -460,12 +460,20 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
 
         if let layerRect = self.scannerFrameLayerRect {
             var isInside = false
-            DispatchQueue.main.sync {
+            let compute: () -> Void = {
                 if let transformed = self.cameraPreview.previewLayer.transformedMetadataObject(for: machineReadableCodeObject)
                     as? AVMetadataMachineReadableCodeObject {
                     let b = transformed.bounds
+                    // 완전 내부만 허용: contains(b). 일부 겹침 허용 시 intersects(b) 도 추가
                     isInside = layerRect.contains(b)
                 }
+            }
+        
+            if Thread.isMainThread {
+                compute()
+            } else {
+                // 델리게이트 큐가 main이 아니어도 데드락 없이 안전하게
+                DispatchQueue.main.sync(execute: compute)
             }
             guard isInside else { return }
         }
