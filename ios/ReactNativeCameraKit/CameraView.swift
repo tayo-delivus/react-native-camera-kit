@@ -123,6 +123,11 @@ public class CameraView: UIView {
 
         super.init(frame: frame)
 
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(handleDidBecomeActive),
+                                               name: UIApplication.didBecomeActiveNotification,
+                                               object: nil)
+
         // Transfer the default values, otherwise the default wont take effect since it's a separate class
         focusInterfaceView.update(focusMode: focusMode)
         focusInterfaceView.update(resetFocusTimeout: resetFocusTimeout)
@@ -164,6 +169,19 @@ public class CameraView: UIView {
             eventInteraction = interaction
         }
         #endif
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    override public func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil {
+            DispatchQueue.main.async {
+                self.camera.update(scannerFrameSize: self.showFrame ? self.scannerInterfaceView.frameSize : nil)
+            }
+        }
     }
 
     override public func removeFromSuperview() {
@@ -309,6 +327,40 @@ public class CameraView: UIView {
             camera.update(maxZoom: maxZoom?.doubleValue)
         }
     }
+
+    @objc private func handleDidBecomeActive() {
+    DispatchQueue.main.async {
+        // 1) 오토레이아웃/레이어 배치 보장
+        self.layoutIfNeeded()
+        self.scannerInterfaceView.layoutIfNeeded()
+
+        // 2) 프레임 숨김이면 전체 스캔
+        guard self.showFrame else {
+            self.camera.update(scannerFrame: nil)
+            return
+        }
+
+        // 3) scannerInterfaceView.bounds(자기 좌표) -> camera.previewView 좌표로 변환
+        //    **camera.previewView는 RealCamera.previewView와 동일한 뷰**
+        let rectInPreviewView = self.scannerInterfaceView.convert(
+            self.scannerInterfaceView.bounds,
+            to: self.camera.previewView
+        )
+
+        // 4) 1차 적용
+        self.camera.update(scannerFrame: rectInPreviewView)
+
+        // 5) 레이아웃/세션 타이밍 이슈 대비: 다음 런루프에서 한 번 더 적용
+        DispatchQueue.main.async {
+            let rectAgain = self.scannerInterfaceView.convert(
+                self.scannerInterfaceView.bounds,
+                to: self.camera.previewView
+            )
+            self.camera.update(scannerFrame: rectAgain)
+        }
+    }
+}
+
 
     // MARK: Public
 
