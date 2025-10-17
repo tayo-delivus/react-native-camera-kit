@@ -175,11 +175,23 @@ public class CameraView: UIView {
         NotificationCenter.default.removeObserver(self)
     }
 
+    private func currentScannerRectInPreview() -> CGRect? {
+        guard showFrame else { return nil }
+        return scannerInterfaceView.convert(scannerInterfaceView.bounds, to: camera.previewView)
+    }
+
     override public func didMoveToWindow() {
         super.didMoveToWindow()
         if window != nil {
             DispatchQueue.main.async {
-                self.camera.update(scannerFrameSize: self.showFrame ? self.scannerInterfaceView.frameSize : nil)
+                self.layoutIfNeeded()
+                            self.scannerInterfaceView.layoutIfNeeded()
+                            let rect1 = self.currentScannerRectInPreview()
+                            self.camera.update(scannerFrame: rect1)
+                            DispatchQueue.main.async {
+                                let rect2 = self.currentScannerRectInPreview()
+                                self.camera.update(scannerFrame: rect2)
+                            }
             }
         }
     }
