@@ -299,7 +299,18 @@ public class CameraView: UIView {
                 self.scannerInterfaceView.isHidden = !self.showFrame
 
                 // self.camera.update(scannerFrameSize: self.showFrame ? self.scannerInterfaceView.frameSize : nil)
-                self.camera.update(scannerFrame: self.showFrame ? self.scannerInterfaceView.frameOfInterest : nil)
+                self.layoutIfNeeded()
+                self.scannerInterfaceView.layoutIfNeeded()
+                let r1 = self.showFrame
+                    ? self.scannerInterfaceView.convert(self.scannerInterfaceView.bounds, to: self.camera.previewView)
+                    : nil
+                self.camera.update(scannerFrame: r1)
+                DispatchQueue.main.async {
+                    let r2 = self.showFrame
+                        ? self.scannerInterfaceView.convert(self.scannerInterfaceView.bounds, to: self.camera.previewView)
+                        : nil
+                    self.camera.update(scannerFrame: r2)
+                }
             }
         }
         
@@ -307,7 +318,12 @@ public class CameraView: UIView {
             if let width = barcodeFrameSize["width"] as? CGFloat, let height = barcodeFrameSize["height"] as? CGFloat {
                 scannerInterfaceView.update(frameSize: CGSize(width: width, height: height))
                 // camera.update(scannerFrameSize: showFrame ? scannerInterfaceView.frameSize : nil)
-                camera.update(scannerFrame: showFrame ? self.scannerInterfaceView.frameOfInterest : nil)
+                let r1 = self.scannerInterfaceView.convert(self.scannerInterfaceView.bounds, to: self.camera.previewView)
+                self.camera.update(scannerFrame: showFrame ? r1 : nil)
+                DispatchQueue.main.async {
+                    let r2 = self.scannerInterfaceView.convert(self.scannerInterfaceView.bounds, to: self.camera.previewView)
+                    self.camera.update(scannerFrame: showFrame ? r2 : nil)
+                }
             }
         }
 
