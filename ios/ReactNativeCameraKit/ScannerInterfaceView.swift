@@ -101,6 +101,6 @@ class ScannerInterfaceView: UIView {
         let frameHeight = self.frameSize.height
         let x = (bounds.width - frameWidth) / 2
         let y = (bounds.height - frameHeight) / 2
-        return CGRect(x: x, y: y, width: frameWidth, height: height)
+        return CGRect(x: x, y: y, width: frameWidth, height: frameHeight)
     }
 }
