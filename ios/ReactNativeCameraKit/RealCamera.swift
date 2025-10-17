@@ -402,17 +402,13 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
         }
     }
 
-    func update(barcodeFrameSize: CGSize?) {
-        self.barcodeFrameSize = barcodeFrameSize
-    }
-
     func update(scannerFrame: CGRect?) {
         // 이 함수는 UI 업데이트와 관련되어 있으므로 메인 스레드에서 호출됩니다.
         // AVCaptureVideoPreviewLayer에 접근하기 위해 메인 스레드에서 좌표 변환을 수행합니다.
         let rectOfInterest: CGRect
         if let frame = scannerFrame {
             // previewLayer의 metadataOutputRectConverted를 사용해 UI 좌표를 카메라 좌표로 변환합니다.
-            rectOfInterest = cameraPreview.videoPreviewLayer.metadataOutputRectConverted(fromLayerRect: frame)
+            rectOfInterest = cameraPreview.previewLayer.metadataOutputRectConverted(fromLayerRect: frame)
         } else {
             // 프레임이 없으면 전체 화면을 스캔 영역으로 설정합니다.
             rectOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
@@ -452,16 +448,15 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     // MARK: - AVCaptureMetadataOutputObjectsDelegate
 
     func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
-        guard let metadataObject = metadataObjects.first,
-              let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject,
-              let stringValue = readableObject.stringValue else {
+        guard let machineReadableCodeObject = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
+              let stringValue = machineReadableCodeObject.stringValue else {
             return
         }
     
-        let codeFormat = CodeFormat.from(avMetadata: readableObject.type)
+        let barcodeType = CodeFormat.fromAVMetadataObjectType(machineReadableCodeObject.type)
     
         DispatchQueue.main.async {
-            self.onBarcodeRead?(stringValue, codeFormat)
+            self.onBarcodeRead?(stringValue, barcodeType)
         }
     }
 
