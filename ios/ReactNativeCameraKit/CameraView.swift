@@ -185,9 +185,6 @@ public class CameraView: UIView {
         scannerInterfaceView.frame = bounds
         // If frame size changes, we have to update the scanner
         camera.update(scannerFrameSize: showFrame ? scannerInterfaceView.frameSize : nil)
-
-        let rectInPreview = showFrame ? scannerInterfaceView.frameSize : nil
-        camera.updateScannerRectInPreview(rectInPreview, restrictToFrame: scanBarcode)
         
         focusInterfaceView.frame = bounds
 
@@ -268,8 +265,6 @@ public class CameraView: UIView {
                 self.scannerInterfaceView.isHidden = !self.showFrame
 
                 self.camera.update(scannerFrameSize: self.showFrame ? self.scannerInterfaceView.frameSize : nil)
-                self.camera.updateScannerRectInPreview(self.showFrame ? self.scannerInterfaceView.frameSize : nil,
-                                           restrictToFrame: self.scanBarcode)
             }
         }
         
@@ -277,7 +272,6 @@ public class CameraView: UIView {
             if let width = barcodeFrameSize["width"] as? CGFloat, let height = barcodeFrameSize["height"] as? CGFloat {
                 scannerInterfaceView.update(frameSize: CGSize(width: width, height: height))
                 camera.update(scannerFrameSize: showFrame ? scannerInterfaceView.frameSize : nil)
-                camera.updateScannerRectInPreview(scannerInterfaceView.frameSize, restrictToFrame: true)
             }
         }
 
