@@ -128,14 +128,6 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
 
             self.addObservers()
 
-            if self.session.canAddOutput(self.metadataOutput) {
-                self.session.addOutput(self.metadataOutput)
-                self.metadataOutput.setMetadataObjectsDelegate(self, queue: self.sessionQueue)
-                
-                // 초기 스캔 영역을 전체 화면으로 설정합니다.
-                self.metadataOutput.rectOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
-            }
-
             if self.setupResult == .success {
                 self.session.startRunning()
             }
@@ -409,20 +401,20 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     }
 
     func update(scannerFrame: CGRect?) {
-        let layerRect: CGRect? = scannerFrame.map {
-            self.cameraPreview.previewLayer.convert($0, from: self.cameraPreview.layer)
-        }
-        self.scannerFrameLayerRect = layerRect
-
-        // 2) layer -> metadata(rectOfInterest)
-        let rectOfInterest: CGRect =
-            layerRect
-            .map { self.cameraPreview.previewLayer.metadataOutputRectConverted(fromLayerRect: $0) }
-            ?? CGRect(x: 0, y: 0, width: 1, height: 1)
-        
-        self.sessionQueue.async {
-            self.metadataOutput.rectOfInterest = rectOfInterest
-        }
+        DispatchQueue.main.async {
+           let layerRect: CGRect? = scannerFrame.map {
+               self.cameraPreview.previewLayer.convert($0, from: self.cameraPreview.layer)
+           }
+           self.scannerFrameLayerRect = layerRect
+           let rectOfInterest: CGRect =
+               layerRect
+               .map { self.cameraPreview.previewLayer.metadataOutputRectConverted(fromLayerRect: $0) }
+               ?? CGRect(x: 0, y: 0, width: 1, height: 1)
+           
+           self.sessionQueue.async {
+               self.metadataOutput.rectOfInterest = rectOfInterest
+           }
+       }
     }
 
     // func update(scannerFrameSize: CGRect?) {
@@ -453,36 +445,13 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     // MARK: - AVCaptureMetadataOutputObjectsDelegate
 
     func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
-        guard let machineReadableCodeObject = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
-              let stringValue = machineReadableCodeObject.stringValue else {
+        guard let obj = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
+              let stringValue = obj.stringValue else {
             return
         }
-
-        if let layerRect = self.scannerFrameLayerRect {
-            var isInside = false
-            let compute: () -> Void = {
-                if let transformed = self.cameraPreview.previewLayer.transformedMetadataObject(for: machineReadableCodeObject)
-                    as? AVMetadataMachineReadableCodeObject {
-                    let b = transformed.bounds
-                    // 완전 내부만 허용: contains(b). 일부 겹침 허용 시 intersects(b) 도 추가
-                    isInside = layerRect.contains(b)
-                }
-            }
-        
-            if Thread.isMainThread {
-                compute()
-            } else {
-                // 델리게이트 큐가 main이 아니어도 데드락 없이 안전하게
-                DispatchQueue.main.sync(execute: compute)
-            }
-            guard isInside else { return }
-        }
     
-        let barcodeType = CodeFormat.fromAVMetadataObjectType(machineReadableCodeObject.type)
-    
-        DispatchQueue.main.async {
-            self.onBarcodeRead?(stringValue, barcodeType)
-        }
+        let barcodeType = CodeFormat.fromAVMetadataObjectType(obj.type)
+        self.onBarcodeRead?(stringValue, barcodeType)
     }
 
     // MARK: - Private
