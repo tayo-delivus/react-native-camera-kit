@@ -57,6 +57,8 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     // Keep delegate objects in memory to avoid collecting them before photo capturing finishes
     private var inProgressPhotoCaptureDelegates = [Int64: PhotoCaptureDelegate]()
 
+    private var scannerFrameLayerRect: CGRect?
+
     // MARK: - Lifecycle
     
     #if !targetEnvironment(macCatalyst)
@@ -407,18 +409,17 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     }
 
     func update(scannerFrame: CGRect?) {
-        // 이 함수는 UI 업데이트와 관련되어 있으므로 메인 스레드에서 호출됩니다.
-        // AVCaptureVideoPreviewLayer에 접근하기 위해 메인 스레드에서 좌표 변환을 수행합니다.
-        let rectOfInterest: CGRect
-        if let frame = scannerFrame {
-            // previewLayer의 metadataOutputRectConverted를 사용해 UI 좌표를 카메라 좌표로 변환합니다.
-            rectOfInterest = cameraPreview.previewLayer.metadataOutputRectConverted(fromLayerRect: frame)
-        } else {
-            // 프레임이 없으면 전체 화면을 스캔 영역으로 설정합니다.
-            rectOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
+        let layerRect: CGRect? = scannerFrame.map {
+            self.cameraPreview.previewLayer.convert($0, from: self.cameraPreview.layer)
         }
+        self.scannerFrameLayerRect = layerRect
+
+        // 2) layer -> metadata(rectOfInterest)
+        let rectOfInterest: CGRect =
+            layerRect
+            .map { self.cameraPreview.previewLayer.metadataOutputRectConverted(fromLayerRect: $0) }
+            ?? CGRect(x: 0, y: 0, width: 1, height: 1)
         
-        // 실제 rectOfInterest 설정은 세션 큐에서 비동기적으로 처리합니다.
         sessionQueue.async {
             self.metadataOutput.rectOfInterest = rectOfInterest
         }
@@ -455,6 +456,18 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
         guard let machineReadableCodeObject = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
               let stringValue = machineReadableCodeObject.stringValue else {
             return
+        }
+
+        if let layerRect = self.scannerFrameLayerRect {
+            var isInside = false
+            DispatchQueue.main.sync {
+                if let transformed = self.cameraPreview.previewLayer.transformedMetadataObject(raw)
+                    as? AVMetadataMachineReadableCodeObject {
+                    let b = transformed.bounds
+                    isInside = layerRect.contains(b)
+                }
+            }
+            guard isInside else { return }
         }
     
         let barcodeType = CodeFormat.fromAVMetadataObjectType(machineReadableCodeObject.type)
