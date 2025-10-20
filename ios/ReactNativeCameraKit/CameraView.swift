@@ -536,45 +536,4 @@ public class CameraView: UIView {
             camera.zoomPinchChange(pinchScale: pinchRecognizer.scale)
         }
     }
-
-    @objc public func setScanningActive(_ active: Bool) {
-      if active {
-        // 1) 레이아웃 고정 & ROI 먼저 적용
-        DispatchQueue.main.async {
-          self.layoutIfNeeded()
-          self.scannerInterfaceView.layoutIfNeeded()
-    
-          let rect1 = self.showFrame
-            ? self.scannerInterfaceView.convert(self.scannerInterfaceView.frameOfInterest, to: self.camera.previewView)
-            : nil
-          self.camera.update(scannerFrame: rect1)
-    
-          // 2) 다음 런루프에서 타입 ON (ROI 적용 이후)
-          DispatchQueue.main.async {
-            self.camera.isBarcodeScannerEnabled(
-              true,
-              supportedBarcodeTypes: self.supportedBarcodeType,
-              onBarcodeRead: { [weak self] (barcode, codeFormat) in
-                self?.onBarcodeRead(barcode: barcode, codeFormat: codeFormat)
-              }
-            )
-          }
-        }
-      } else {
-        // 숨길 때는 곧바로 OFF
-        self.camera.isBarcodeScannerEnabled(false, supportedBarcodeTypes: [], onBarcodeRead: nil)
-      }
-    }
-    
-    @objc public func updateScannerFrame() {
-      DispatchQueue.main.async {
-        self.layoutIfNeeded()
-        self.scannerInterfaceView.layoutIfNeeded()
-        let rect = self.showFrame
-          ? self.scannerInterfaceView.convert(self.scannerInterfaceView.frameOfInterest, to: self.camera.previewView)
-          : nil
-        self.camera.update(scannerFrame: rect)
-      }
-    }
-
 }
