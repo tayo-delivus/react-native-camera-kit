@@ -38,7 +38,7 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     private var resetFocus: (() -> Void)?
     private var focusFinished: (() -> Void)?
     private var onBarcodeRead: ((_ barcode: String,_ codeFormat : CodeFormat) -> Void)?
-    private var scannerFrameSize: CGRect? = nil
+    // private var scannerFrameSize: CGRect? = nil
     private var barcodeFrameSize: CGSize? = nil
     private var onOrientationChange: RCTDirectEventBlock?
     private var onZoomCallback: RCTDirectEventBlock?
@@ -56,6 +56,9 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
 
     // Keep delegate objects in memory to avoid collecting them before photo capturing finishes
     private var inProgressPhotoCaptureDelegates = [Int64: PhotoCaptureDelegate]()
+
+    private var scannerFrameLayerRect: CGRect?
+    private var lastTypes: [AVMetadataObject.ObjectType] = []
 
     // MARK: - Lifecycle
     
@@ -373,67 +376,117 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
         }
     }
 
-    func isBarcodeScannerEnabled(_ isEnabled: Bool,
-                                 supportedBarcodeTypes supportedBarcodeType: [CodeFormat],
-                                 onBarcodeRead: ((_ barcode: String,_ codeFormat:CodeFormat) -> Void)?) {
-        sessionQueue.async {
-            self.onBarcodeRead = onBarcodeRead
-            let newTypes: [AVMetadataObject.ObjectType]
-            if isEnabled && onBarcodeRead != nil {
-                let availableTypes = self.metadataOutput.availableMetadataObjectTypes
-                newTypes = supportedBarcodeType.map { $0.toAVMetadataObjectType() }
-                                                        .filter { availableTypes.contains($0) }
-            } else {
-                newTypes = []
-            }
+    // func isBarcodeScannerEnabled(_ isEnabled: Bool,
+    //                              supportedBarcodeTypes supportedBarcodeType: [CodeFormat],
+    //                              onBarcodeRead: ((_ barcode: String,_ codeFormat:CodeFormat) -> Void)?) {
+    //     sessionQueue.async {
+    //         self.onBarcodeRead = onBarcodeRead
+    //         let newTypes: [AVMetadataObject.ObjectType]
+    //         if isEnabled && onBarcodeRead != nil {
+    //             let availableTypes = self.metadataOutput.availableMetadataObjectTypes
+    //             newTypes = supportedBarcodeType.map { $0.toAVMetadataObjectType() }
+    //                                                     .filter { availableTypes.contains($0) }
+    //         } else {
+    //             newTypes = []
+    //             self.metadataOutput.rectOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
+    //         }
 
-            if self.metadataOutput.metadataObjectTypes != newTypes {
-                self.metadataOutput.metadataObjectTypes = newTypes
+    //         if self.metadataOutput.metadataObjectTypes != newTypes {
+    //             self.metadataOutput.metadataObjectTypes = newTypes
+    //         }
+    //     }
+    // }
+
+    func isBarcodeScannerEnabled(_ isEnabled: Bool,
+                             supportedBarcodeTypes supportedBarcodeType: [CodeFormat],
+                             onBarcodeRead: ((_ barcode: String,_ codeFormat:CodeFormat) -> Void)?) {
+      sessionQueue.async {
+        self.onBarcodeRead = onBarcodeRead
+        let available = self.metadataOutput.availableMetadataObjectTypes
+        let types = supportedBarcodeType.map { $0.toAVMetadataObjectType() }.filter { available.contains($0) }
+        self.lastTypes = types
+    
+        if isEnabled && onBarcodeRead != nil {
+          // 연결/방향/ROI를 먼저 확정
+          DispatchQueue.main.async {
+            // 연결이 꺼져 있으면 다시 켜기
+            self.cameraPreview.previewLayer.connection?.isEnabled = true
+            self.metadataOutput.connections.forEach { $0.isEnabled = true }
+    
+            // 인터페이스 방향 재동기화 (특히 display:none → 표시 직후)
+            self.setVideoOrientationToInterfaceOrientation()
+    
+            // ROI는 update(scannerFrame:)에서 이미 설정됨 (여기선 그대로 사용)
+            // 다음 런루프에 타입을 넣어 캡처 파이프라인이 준비된 뒤 적용
+            DispatchQueue.main.async {
+              self.metadataOutput.metadataObjectTypes = types
             }
+          }
+        } else {
+          // 끌 때는 타입만 비우면 OK (ROI는 유지)
+          DispatchQueue.main.async {
+            self.metadataOutput.metadataObjectTypes = []
+          }
         }
+      }
     }
 
     func update(barcodeFrameSize: CGSize?) {
         self.barcodeFrameSize = barcodeFrameSize
     }
 
-    func update(scannerFrameSize: CGRect?) {
-        guard self.scannerFrameSize != scannerFrameSize else { return }
-        self.sessionQueue.async {
-            self.scannerFrameSize = scannerFrameSize
-            if !self.session.isRunning {
-                return
-            }
-
-            DispatchQueue.main.async {
-                var visibleRect: CGRect?
-                if scannerFrameSize != nil && scannerFrameSize != .zero {
-                    visibleRect = self.cameraPreview.previewLayer.metadataOutputRectConverted(fromLayerRect: scannerFrameSize!)
-                }
-
-                self.sessionQueue.async {
-                    if self.metadataOutput.rectOfInterest == visibleRect {
-                        return
-                    }
-
-                    self.metadataOutput.rectOfInterest = visibleRect ?? CGRect(x: 0, y: 0, width: 1, height: 1)
-                }
-            }
-        }
+    func update(scannerFrame: CGRect?) {
+        DispatchQueue.main.async {
+           let layerRect: CGRect? = scannerFrame.map {
+               self.cameraPreview.previewLayer.convert($0, from: self.cameraPreview.layer)
+           }
+           self.scannerFrameLayerRect = layerRect
+           let rectOfInterest: CGRect =
+               layerRect
+               .map { self.cameraPreview.previewLayer.metadataOutputRectConverted(fromLayerRect: $0) }
+               ?? CGRect(x: 0, y: 0, width: 1, height: 1)
+           
+           self.sessionQueue.async {
+               self.metadataOutput.rectOfInterest = rectOfInterest
+           }
+       }
     }
+
+    // func update(scannerFrameSize: CGRect?) {
+    //     guard self.scannerFrameSize != scannerFrameSize else { return }
+    //     self.sessionQueue.async {
+    //         self.scannerFrameSize = scannerFrameSize
+    //         if !self.session.isRunning {
+    //             return
+    //         }
+
+    //         DispatchQueue.main.async {
+    //             var visibleRect: CGRect?
+    //             if scannerFrameSize != nil && scannerFrameSize != .zero {
+    //                 visibleRect = self.cameraPreview.previewLayer.metadataOutputRectConverted(fromLayerRect: scannerFrameSize!)
+    //             }
+
+    //             self.sessionQueue.async {
+    //                 if self.metadataOutput.rectOfInterest == visibleRect {
+    //                     return
+    //                 }
+
+    //                 self.metadataOutput.rectOfInterest = visibleRect ?? CGRect(x: 0, y: 0, width: 1, height: 1)
+    //             }
+    //         }
+    //     }
+    // }
 
     // MARK: - AVCaptureMetadataOutputObjectsDelegate
 
     func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
-        // Try to retrieve the barcode from the metadata extracted
-        guard let machineReadableCodeObject = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
-              let codeStringValue = machineReadableCodeObject.stringValue else {
+        guard let obj = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
+              let stringValue = obj.stringValue else {
             return
         }
-        // Determine the barcode type and convert it to CodeFormat
-          let barcodeType = CodeFormat.fromAVMetadataObjectType(machineReadableCodeObject.type)
-
-        onBarcodeRead?(codeStringValue,barcodeType)
+    
+        let barcodeType = CodeFormat.fromAVMetadataObjectType(obj.type)
+        self.onBarcodeRead?(stringValue, barcodeType)
     }
 
     // MARK: - Private

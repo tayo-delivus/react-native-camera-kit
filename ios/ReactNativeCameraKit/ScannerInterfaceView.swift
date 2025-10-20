@@ -95,4 +95,12 @@ class ScannerInterfaceView: UIView {
             width: frame.size.width,
             height: frame.size.height - frameRect.origin.y - barcodeFrameHeight)
     }
+
+    public var frameOfInterest: CGRect {
+        let frameWidth = self.frameSize.width
+        let frameHeight = self.frameSize.height
+        let x = (bounds.width - frameWidth) / 2
+        let y = (bounds.height - frameHeight) / 2
+        return CGRect(x: x, y: y, width: frameWidth, height: frameHeight)
+    }
 }

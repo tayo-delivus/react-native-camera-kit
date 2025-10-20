@@ -56,7 +56,7 @@ class RectOverlay constructor(context: Context) :
         color = ContextCompat.getColor(context, android.R.color.holo_green_light)
         strokeWidth = 5f
     }
-
+    
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         // Pass it a list of RectF (rectBounds)
@@ -92,6 +92,9 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
     private var shutterAnimationDuration: Int = 50
     private var shutterPhotoSound: Boolean = true
     private var effectLayer = View(context)
+
+    private var isCameraInitialized = false
+    private var pendingBind = false
 
     // Camera Props
     private var lensType = CameraSelector.LENS_FACING_BACK
@@ -133,7 +136,16 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         if (hasPermissions()) {
-            viewFinder.post { setupCamera() }
+            // viewFinder.post { setupCamera() }
+            whenLaidOut {
+              if (!isCameraInitialized) {
+                setupCamera()
+                isCameraInitialized = true
+              } else if (pendingBind) {
+                bindCameraUseCases()
+                pendingBind = false
+              }
+            }
         }
     }
 
@@ -160,6 +172,14 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         }
         return super.dispatchKeyEvent(event)
     }
+
+    private fun whenLaidOut(action: () -> Unit) {
+          if (viewFinder.width > 0 && viewFinder.height > 0 && viewFinder.display != null) {
+            action()
+          } else {
+            viewFinder.post { whenLaidOut(action) }
+          }
+        }
 
     // If this is not called correctly, view finder will be black/blank
     // https://github.com/facebook/react-native/issues/17968#issuecomment-633308615
@@ -284,7 +304,14 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
     }
 
     private fun bindCameraUseCases() {
-        if (viewFinder.display == null) return
+        if (viewFinder.display == null || viewFinder.width == 0 || viewFinder.height == 0) {
+            pendingBind = true
+            whenLaidOut {
+              pendingBind = false
+              bindCameraUseCases()
+            }
+            return
+        }
 
         val previewWidth = viewFinder.getWidth();
         val previewHeight = viewFinder.getHeight();
@@ -325,52 +352,55 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         imageAnalyzer = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .setTargetAspectRatio(previewAspectRatio)
+            .setOutputImageRotationEnabled(true)
             .build()
 
         val useCases = mutableListOf(preview, imageCapture)
 
     if (scanBarcode) {
-        val analyzer = QRCodeAnalyzer(analyzerBlock@{ barcodes, imageSize ->
-                if (barcodes.isEmpty()) {
-                    return@analyzerBlock
-                }
-
-                val barcodeFrame = barcodeFrame
-                if (barcodeFrame == null) {
-                    onBarcodeRead(barcodes)
-                    return@analyzerBlock
-                }
-
-                // Calculate scaling factors (image is always rotated by 90 degrees)
-                val scaleX = viewFinder.width.toFloat() / imageSize.height
-                val scaleY = viewFinder.height.toFloat() / imageSize.width
-
-                val filteredBarcodes = barcodes.filter { barcode ->
-                    val barcodeBoundingBox = barcode.boundingBox ?: return@filter false;
-                    val scaledBarcodeBoundingBox = Rect(
-                        (barcodeBoundingBox.left * scaleX).toInt(),
-                        (barcodeBoundingBox.top * scaleY).toInt(),
-                        (barcodeBoundingBox.right * scaleX).toInt(),
-                        (barcodeBoundingBox.bottom * scaleY).toInt()
-                    )
-                    barcodeFrame.frameRect.contains(scaledBarcodeBoundingBox)
-                }
-
-                if (filteredBarcodes.isNotEmpty()) {
-                    onBarcodeRead(filteredBarcodes)
-                }
-            }, scanThrottleDelay)
-            imageAnalyzer!!.setAnalyzer(cameraExecutor, analyzer)
-            useCases.add(imageAnalyzer)
+        val normalizedFrame: RectF? = barcodeFrame?.let { bf ->
+            val viewW = viewFinder.width.toFloat().coerceAtLeast(1f)
+            val viewH = viewFinder.height.toFloat().coerceAtLeast(1f)
+            val r = bf.frameRect // View 좌표(pixels)
+            
+            RectF(
+                (r.left   / viewW).coerceIn(0f, 1f),
+                (r.top    / viewH).coerceIn(0f, 1f),
+                (r.right  / viewW).coerceIn(0f, 1f),
+                (r.bottom / viewH).coerceIn(0f, 1f)
+            )
+        }
+        val analyzer = QRCodeAnalyzer(
+            onQRCodesDetected = { filtered: List<Barcode>, _: Size ->
+                if (filtered.isNotEmpty()) onBarcodeRead(filtered)
+            },
+            scanThrottleDelay = scanThrottleDelay,
+            normalizedFrame = normalizedFrame,
+            containmentEpsilonPx = 1 // 경계 오차 미세 허용 권장
+        )
+        imageAnalyzer!!.setAnalyzer(cameraExecutor, analyzer)
+        useCases.add(imageAnalyzer)
         }
 
         // Must unbind the use-cases before rebinding them
         cameraProvider.unbindAll()
 
         try {
-            // A variable number of use-cases can be passed here -
-            // camera provides access to CameraControl & CameraInfo
-            val newCamera = cameraProvider.bindToLifecycle(getActivity() as AppCompatActivity, cameraSelector, *useCases.toTypedArray())
+            val rotationDegrees = viewFinder.display?.rotation ?: Surface.ROTATION_0
+            val rational = android.util.Rational(viewFinder.width.coerceAtLeast(1), viewFinder.height.coerceAtLeast(1))
+            val viewPort = androidx.camera.core.ViewPort.Builder(rational, rotationDegrees)
+                .setScaleType(androidx.camera.core.ViewPort.FILL_CENTER) // PreviewView 기본 동작과 맞춤
+                .build()
+        
+            val useCaseGroup = androidx.camera.core.UseCaseGroup.Builder()
+                .setViewPort(viewPort)
+                .addUseCase(preview!!)
+                .addUseCase(imageCapture!!)
+                .apply { if (scanBarcode) addUseCase(imageAnalyzer!!) }
+                .build()
+        
+            val newCamera = cameraProvider!!.bindToLifecycle(getActivity() as AppCompatActivity, cameraSelector, useCaseGroup)
+    
             camera = newCamera
 
             resetZoom(newCamera)
@@ -641,6 +671,10 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
     fun setScanBarcode(enabled: Boolean) {
         val restartCamera = enabled != scanBarcode
         scanBarcode = enabled
+        if (!isCameraInitialized) {
+            pendingBind = true
+            return
+        }
         if (restartCamera) bindCameraUseCases()
     }
 

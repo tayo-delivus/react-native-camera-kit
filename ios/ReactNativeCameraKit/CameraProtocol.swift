@@ -21,7 +21,6 @@ protocol CameraProtocol: AnyObject, FocusInterfaceViewDelegate {
     func update(maxZoom: Double?)
     func update(resizeMode: ResizeMode)
     func update(maxPhotoQualityPrioritization: MaxPhotoQualityPrioritization?)
-    func update(barcodeFrameSize: CGSize?)
 
     func zoomPinchStart()
     func zoomPinchChange(pinchScale: CGFloat)
@@ -30,7 +29,8 @@ protocol CameraProtocol: AnyObject, FocusInterfaceViewDelegate {
                                  supportedBarcodeTypes: [CodeFormat],
                                  onBarcodeRead: ((_ barcode: String, _ codeFormat: CodeFormat) -> Void)?)
 
-    func update(scannerFrameSize: CGRect?)
+    // func update(scannerFrameSize: CGRect?)
+    func update(scannerFrame: CGRect?)
 
     func capturePicture(onWillCapture: @escaping () -> Void,
                         onSuccess: @escaping (_ imageData: Data, _ thumbnailData: Data?, _ dimensions: CMVideoDimensions) -> Void,
