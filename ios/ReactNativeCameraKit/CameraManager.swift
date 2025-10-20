@@ -60,20 +60,4 @@ import React
         AVCaptureDevice.requestAccess(for: .video, completionHandler: { resolve($0) })
         #endif
     }
-
-    @objc func setScanningActive(_ reactTag: NSNumber, active: Bool) {
-      bridge.uiManager.addUIBlock { (_, viewRegistry) in
-        if let view = viewRegistry?[reactTag] as? CameraView {
-          view.setScanningActive(active)
-        }
-      }
-    }
-    
-   @objc func updateScannerFrame(_ reactTag: NSNumber) {
-     bridge.uiManager.addUIBlock { (_, viewRegistry) in
-       if let view = viewRegistry?[reactTag] as? CameraView {
-         view.updateScannerFrame()
-       }
-     }
-   }
 }
