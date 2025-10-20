@@ -8,6 +8,11 @@ import NativeCameraKitModule from './specs/NativeCameraKitModule';
 const Camera = React.forwardRef<CameraApi, CameraProps>((props, ref) => {
   const nativeRef = React.useRef(null);
 
+  const getTag = () => {
+    const tag = findNodeHandle(nativeRef.current);
+    return typeof tag === 'number' ? tag : null;
+  };
+
   // RN doesn't support optional view props yet (sigh)
   // so we have to use -1 to indicate 'undefined'
   // All int/float/double props from src/specs/CameraNativeComponent.ts need be mentioned here
@@ -20,7 +25,9 @@ const Camera = React.forwardRef<CameraApi, CameraProps>((props, ref) => {
 
   React.useImperativeHandle(ref, () => ({
     capture: async () => {
-      return await NativeCameraKitModule.capture({}, findNodeHandle(nativeRef.current) ?? undefined);
+      const tag = getTag();
+      if (tag == null) throw new Error('Camera not mounted yet');
+      return await NativeCameraKitModule.capture({}, tag);
     },
     requestDeviceCameraAuthorization: async () => {
       return await NativeCameraKitModule.checkDeviceCameraAuthorizationStatus();
@@ -29,10 +36,14 @@ const Camera = React.forwardRef<CameraApi, CameraProps>((props, ref) => {
       return await NativeCameraKitModule.checkDeviceCameraAuthorizationStatus();
     },
     updateScannerFrame: async () => {
-      return await NativeCameraKitModule.updateScannerFrame({}, findNodeHandle(nativeRef.current) ?? undefined);
+      const tag = getTag();
+      if (tag == null) return; 
+      return NativeCameraKitModule.updateScannerFrame({}, tag);
     },
     setScanningActive: async (active: boolean) => {
-      return await NativeCameraKitModule.setScanningActive({ active }, findNodeHandle(nativeRef.current) ?? undefined);
+      const tag = getTag();
+      if (tag == null) return; 
+      return NativeCameraKitModule.setScanningActive({ active }, tag);
     },
   }));
 
