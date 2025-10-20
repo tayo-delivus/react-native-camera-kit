@@ -94,16 +94,4 @@ class RNCameraKitModule(private val reactContext: ReactApplicationContext) : Nat
             promise.reject("E_CAPTURE_FAILED", "options or/and tag arguments are null, options: $options, tag: $viewTag")
         }
     }
-
-    @ReactMethod
-    override fun setScanningActive(options: ReadableMap, reactTag: Double, promise: Promise) {
-        // Android는 불필요: no-op
-        promise.resolve(null)
-    }    
-    
-    @ReactMethod
-    override fun updateScannerFrame(options: ReadableMap, reactTag: Double, promise: Promise) {
-        // Android는 불필요: no-op
-        promise.resolve(null)
-    }
 }
