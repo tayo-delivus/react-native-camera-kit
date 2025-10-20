@@ -28,6 +28,12 @@ const Camera = React.forwardRef<CameraApi, CameraProps>((props, ref) => {
     checkDeviceCameraAuthorizationStatus: async () => {
       return await NativeCameraKitModule.checkDeviceCameraAuthorizationStatus();
     },
+    updateScannerFrame: async () => {
+      return await NativeCameraKitModule.updateScannerFrame({}, getTag());
+    },
+    setScanningActive: async (active: boolean) => {
+      return await NativeCameraKitModule.setScanningActive({ active }, getTag());
+    },
   }));
 
   // @ts-expect-error props for codegen differ a bit from the user-facing ones
