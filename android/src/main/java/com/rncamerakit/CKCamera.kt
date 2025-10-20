@@ -56,7 +56,7 @@ class RectOverlay constructor(context: Context) :
         color = ContextCompat.getColor(context, android.R.color.holo_green_light)
         strokeWidth = 5f
     }
-
+    
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         // Pass it a list of RectF (rectBounds)
@@ -92,6 +92,9 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
     private var shutterAnimationDuration: Int = 50
     private var shutterPhotoSound: Boolean = true
     private var effectLayer = View(context)
+
+    private var isCameraInitialized = false
+    private var pendingBind = false
 
     // Camera Props
     private var lensType = CameraSelector.LENS_FACING_BACK
@@ -133,7 +136,16 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         if (hasPermissions()) {
-            viewFinder.post { setupCamera() }
+            // viewFinder.post { setupCamera() }
+            whenLaidOut {
+              if (!isCameraInitialized) {
+                setupCamera()
+                isCameraInitialized = true
+              } else if (pendingBind) {
+                bindCameraUseCases()
+                pendingBind = false
+              }
+            }
         }
     }
 
@@ -160,6 +172,14 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
         }
         return super.dispatchKeyEvent(event)
     }
+
+    private fun whenLaidOut(action: () -> Unit) {
+          if (viewFinder.width > 0 && viewFinder.height > 0 && viewFinder.display != null) {
+            action()
+          } else {
+            viewFinder.post { whenLaidOut(action) }
+          }
+        }
 
     // If this is not called correctly, view finder will be black/blank
     // https://github.com/facebook/react-native/issues/17968#issuecomment-633308615
@@ -284,7 +304,14 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
     }
 
     private fun bindCameraUseCases() {
-        if (viewFinder.display == null) return
+        if (viewFinder.display == null || viewFinder.width == 0 || viewFinder.height == 0) {
+            pendingBind = true
+            whenLaidOut {
+              pendingBind = false
+              bindCameraUseCases()
+            }
+            return
+        }
 
         val previewWidth = viewFinder.getWidth();
         val previewHeight = viewFinder.getHeight();
@@ -644,6 +671,10 @@ class CKCamera(context: ThemedReactContext) : FrameLayout(context), LifecycleObs
     fun setScanBarcode(enabled: Boolean) {
         val restartCamera = enabled != scanBarcode
         scanBarcode = enabled
+        if (!isCameraInitialized) {
+            pendingBind = true
+            return
+        }
         if (restartCamera) bindCameraUseCases()
     }
 
