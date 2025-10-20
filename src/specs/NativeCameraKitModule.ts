@@ -18,8 +18,8 @@ export interface Spec extends TurboModule {
   capture(options?: UnsafeObject, tag?: Double): Promise<CaptureData>;
   requestDeviceCameraAuthorization: () => Promise<boolean>;
   checkDeviceCameraAuthorizationStatus: () => Promise<boolean>;
-  setScanningActive(options: { active: boolean }, reactTag: number): Promise<boolean>;
-  updateScannerFrame(options: {}, reactTag: number): Promise<boolean>;
+  setScanningActive(options: { active: boolean }, tag?: Double): Promise<boolean>;
+  updateScannerFrame(options: {}, tag?: Double): Promise<boolean>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('RNCameraKitModule');

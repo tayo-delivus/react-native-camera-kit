@@ -29,10 +29,10 @@ const Camera = React.forwardRef<CameraApi, CameraProps>((props, ref) => {
       return await NativeCameraKitModule.checkDeviceCameraAuthorizationStatus();
     },
     updateScannerFrame: async () => {
-      return await NativeCameraKitModule.updateScannerFrame({}, getTag());
+      return await NativeCameraKitModule.updateScannerFrame({}, findNodeHandle(nativeRef.current) ?? undefined);
     },
     setScanningActive: async (active: boolean) => {
-      return await NativeCameraKitModule.setScanningActive({ active }, getTag());
+      return await NativeCameraKitModule.setScanningActive({ active }, findNodeHandle(nativeRef.current) ?? undefined);
     },
   }));
 
