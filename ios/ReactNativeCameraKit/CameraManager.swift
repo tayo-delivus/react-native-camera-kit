@@ -60,4 +60,27 @@ import React
         AVCaptureDevice.requestAccess(for: .video, completionHandler: { resolve($0) })
         #endif
     }
+
+    @objc(setScanningActive:tag:resolve:reject:)
+    func setScanningActive(_ options: NSDictionary,
+                         tag: NSNumber,
+                         resolve: @escaping RCTPromiseResolveBlock,
+                         reject: @escaping RCTPromiseRejectBlock) {
+        let active = (options["active"] as? Bool) ?? false
+        withCamera(tag, methodName: "setScanningActive", reject: reject) { view in
+          view.setScanningActive(active)
+          resolve(nil)
+        }
+    }
+    
+    @objc(updateScannerFrame:tag:resolve:reject:)
+    func updateScannerFrame(_ options: NSDictionary,
+                          tag: NSNumber,
+                          resolve: @escaping RCTPromiseResolveBlock,
+                          reject: @escaping RCTPromiseRejectBlock) {
+        withCamera(tag, methodName: "updateScannerFrame", reject: reject) { view in
+          view.updateScannerFrame()
+          resolve(nil)
+        }
+    }
 }
