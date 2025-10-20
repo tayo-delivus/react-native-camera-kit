@@ -571,7 +571,7 @@ public class CameraView: UIView {
         self.layoutIfNeeded()
         self.scannerInterfaceView.layoutIfNeeded()
         let rect = self.showFrame
-          ? self.scannerInterfaceView.convert(self.scannerInterfaceView.bounds, to: self.camera.previewView)
+          ? self.scannerInterfaceView.convert(self.scannerInterfaceView.frameOfInterest, to: self.camera.previewView)
           : nil
         self.camera.update(scannerFrame: rect)
       }
