@@ -19,8 +19,15 @@ class RealPreviewView: UIView {
     }
 
     // Connect the layer to a capture session.
+    private var _session: AVCaptureSession?
     var session: AVCaptureSession? {
-        get { previewLayer.session }
-        set { previewLayer.session = newValue }
+        get { _session }
+        set {
+            guard _session !== newValue else { return }
+            _session = newValue
+            DispatchQueue.main.async {
+                self.previewLayer.session = newValue
+            }
+        }
     }
 }

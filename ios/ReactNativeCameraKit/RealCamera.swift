@@ -91,7 +91,10 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     func cameraRemovedFromSuperview() {
         sessionQueue.async {
             if self.setupResult == .success {
-                self.session.stopRunning()
+                if self.session.isRunning {
+                    self.session.stopRunning()
+                }
+                self.isSessionRunning = self.session.isRunning
                 self.removeObservers()
             }
         }
@@ -112,30 +115,38 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
     // MARK: - Public
 
     func setup(cameraType: CameraType, supportedBarcodeType: [CodeFormat]) {
+        // 프리뷰 videoGravity만 먼저 세팅(세션 연결은 구성 완료 후에!)
         DispatchQueue.main.async {
-            self.cameraPreview.session = self.session
             self.cameraPreview.previewLayer.videoGravity = .resizeAspect
         }
 
         self.initializeMotionManager()
 
-        // Setup the capture session.
-        // In general, it is not safe to mutate an AVCaptureSession or any of its inputs, outputs, or connections from multiple threads at the same time.
-        // Why not do all of this on the main queue?
-        // Because -[AVCaptureSession startRunning] is a blocking call which can take a long time. We dispatch session setup to the sessionQueue
-        // so that the main queue isn't blocked, which keeps the UI responsive.
+        // 세션 구성은 전부 세션 큐에서 직렬화
         sessionQueue.async {
+            // 1) 세션 구성(내부에서 begin/commit 수행)
             self.setupResult = self.setupCaptureSession(cameraType: cameraType, supportedBarcodeType: supportedBarcodeType)
-
             self.addObservers()
 
-            if self.setupResult == .success {
-                self.session.startRunning()
+            guard self.setupResult == .success else { return }
+
+            // 2) commitConfiguration 이후, 메인 큐에서 프리뷰에 세션 연결
+            DispatchQueue.main.sync {
+                if (self.cameraPreview.previewLayer.session !== self.session) {
+                    self.cameraPreview.previewLayer.session = self.session
+                }
             }
 
-           DispatchQueue.main.async {
-               self.setVideoOrientationToInterfaceOrientation()
-           }
+            // 3) 중복 시작 방지 후 startRunning
+            if !self.session.isRunning {
+                self.session.startRunning()
+            }
+            self.isSessionRunning = self.session.isRunning
+
+            // 4) 연결 후 인터페이스 방향 동기화(메인)
+            DispatchQueue.main.async {
+                self.setVideoOrientationToInterfaceOrientation()
+            }
         }
     }
 
@@ -776,10 +787,10 @@ class RealCamera: NSObject, CameraProtocol, AVCaptureMetadataOutputObjectsDelega
         // Automatically try to restart the session running if media services were reset and the last start running succeeded.
         if error.code == .mediaServicesWereReset {
             sessionQueue.async {
-                if self.isSessionRunning {
+                if self.isSessionRunning && !self.session.isRunning {
                     self.session.startRunning()
-                    self.isSessionRunning = self.session.isRunning
                 }
+                self.isSessionRunning = self.session.isRunning
             }
         }
         // Otherwise, enable the user to try to resume the session running.
